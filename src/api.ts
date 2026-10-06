@@ -11,7 +11,7 @@ export interface Atlas {
   owner: { id: string; name: string }; generatedAt: string; episodes: AtlasEpisode[]; edges: AtlasEdge[];
   facts: Array<{ id: string; key: string; status: string }>; notes: Array<{ id: string; category: string; pending: boolean }>;
   digests: Array<{ id: string; level: string; period: string }>;
-  totals: { llmCalls: number; inputTokens: number; outputTokens: number; recalls: number };
+  totals?: { llmCalls: number; inputTokens: number; outputTokens: number; recalls: number };
 }
 export type TelemetryEvent = { type: string; at: string; ownerId?: string | null } & Record<string, unknown>;
 

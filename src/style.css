@@ -79,6 +79,10 @@ footer.hud { left: 16px; right: 16px; bottom: calc(14px + env(safe-area-inset-bo
 
 /* Only-brain mode (screensaver): the brain alone; the cursor hides until the mouse moves. */
 body.only-brain .hud, body.only-brain .label, body.only-brain .scan { display: none; }
+/* The person on screen: in the header the status says it; in only-brain mode a quiet caption. */
+.who { display: none; }
+body.only-brain .who { display: block; position: fixed; z-index: 2; left: 18px; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); margin: 0;
+  font: 600 11px var(--display); letter-spacing: .2em; text-transform: uppercase; color: var(--muted); opacity: .7; }
 body.only-brain { cursor: none; }
 body.only-brain.pointer { cursor: default; }
 .exit-only { display: none; position: fixed; z-index: 3; right: 16px; top: calc(14px + env(safe-area-inset-top, 0px));

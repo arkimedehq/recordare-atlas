@@ -30,6 +30,15 @@ function log(cls: string, text: string, at?: string): void {
   while ($('events').children.length > 40) $('events').lastChild?.remove();
 }
 function setStatus(state: 'on' | 'off' | 'err', text: string): void { status.className = `status ${state}`; status.textContent = text; }
+let streamState: 'on' | 'off' | 'err' = 'off';
+/** Connection state plus who is on screen (in follow mode the person changes by itself, so the name matters). */
+function showStatus(): void {
+  const who = shownName ? ` · ${shownName}` : '';
+  setStatus(streamState, streamState === 'on'
+    ? (following ? `segue l'attività${who || ' · in attesa'}` : `in ascolto${who}`)
+    : streamState === 'err' ? 'stream interrotto · riprovo' : 'stream chiuso · riprovo');
+  $('who').textContent = shownName;
+}
 
 try { keyInput.value = sessionStorage.getItem('atlas-key') ?? ''; } catch { /* storage unavailable */ }
 keyInput.addEventListener('change', () => void loadOwners());
@@ -38,6 +47,7 @@ void loadOwners(); // with a local proxy holding the key, no key is needed here
 async function loadOwners(): Promise<void> {
   try {
     const list = await owners(keyInput.value);
+    latestOwner = list[0]?.id ?? null; // the list is ordered by last activity
     const follow = Object.assign(document.createElement('option'), { value: FOLLOW, textContent: 'Segui l\'attività (live)' });
     ownerSelect.replaceChildren(follow, ...list.map((o) => Object.assign(document.createElement('option'), { value: o.id, textContent: `${o.name} · ${o.episodes} episodi` })));
     ownerSelect.disabled = false;
@@ -64,15 +74,21 @@ const FOLLOW = '__follow__';
 const STAY_MS = 20_000;
 let current: string | null = null;
 let lastSeen = 0;
+let following = false;
+let latestOwner: string | null = null;
+let shownName = '';
 
 async function connect(choice: string): Promise<void> {
   if (!choice) { await loadOwners(); return; }
   stopStream?.();
   const follow = choice === FOLLOW;
-  current = follow ? null : choice;
-  if (current) await refresh(current);
-  stopStream = stream(keyInput.value, follow ? null : choice, (e) => void route(e, follow), (s) =>
-    setStatus(s, s === 'on' ? (follow ? 'segue l\'attività · eventi reali' : 'in ascolto · eventi reali') : s === 'err' ? 'stream interrotto · riprovo' : 'stream chiuso · riprovo'));
+  following = follow;
+  current = follow ? latestOwner : choice; // follow starts from the person active most recently
+  if (current) await refresh(current).catch(() => undefined);
+  stopStream = stream(keyInput.value, follow ? null : choice, (e) => void route(e, follow), (s) => {
+    streamState = s;
+    showStatus();
+  });
   log('idle', follow ? 'in ascolto di tutto il servizio: mostra la persona attiva' : 'collegato: ogni impulso da qui in poi è un evento reale del servizio');
 }
 
@@ -92,11 +108,14 @@ async function route(e: TelemetryEvent, follow: boolean): Promise<void> {
 async function refresh(ownerId: string): Promise<void> {
   const a = await atlas(keyInput.value, ownerId);
   brain.load(a);
+  shownName = a.owner.name;
+  showStatus();
   counters.ep = a.episodes.filter((e) => !e.hidden && e.authorRole !== 'other' && e.authorRole !== 'tool').length;
   counters.cl = a.episodes.filter((e) => e.authorRole === 'other' || e.authorRole === 'tool').length;
   counters.fn = a.facts.filter((f) => f.status === 'current').length + a.notes.length;
-  // Lifetime totals from the service; live events add to them until the next snapshot.
-  counters.llm = a.totals.llmCalls; counters.tok = a.totals.inputTokens + a.totals.outputTokens; counters.rec = a.totals.recalls;
+  // Lifetime totals from the service; live events add to them until the next snapshot. (A service older than the
+  // dashboard sends none: then the counters count from the connection.)
+  if (a.totals) { counters.llm = a.totals.llmCalls; counters.tok = a.totals.inputTokens + a.totals.outputTokens; counters.rec = a.totals.recalls; }
   show();
 }
 /** New memories get their real place by meaning at the next snapshot (a few seconds after the writes stop). */
