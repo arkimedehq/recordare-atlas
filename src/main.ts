@@ -142,6 +142,33 @@ function endWork(id: number): void {
   regions.forEach((r) => brain.wait(r, -1));
 }
 
+// ---------- client agents (OpenTelemetry GenAI spans relayed by the atlas server, WORK_PLAN 5b.8) ----------
+/** Spans reach the atlas when they end (the client's exporter batches them): each is shown once, on arrival, as what
+ * it was — never stretched into a fake live wait. */
+interface ClientSpan { op: string; owner: string | null; agent: string | null; model: string | null; tool: string | null; service: string | null;
+  inputTokens?: number; outputTokens?: number; ms: number; status: string }
+function onClientSpan(s: ClientSpan): void {
+  if (s.owner && current && s.owner !== current) return; // another person's agent
+  const who = s.agent ?? s.service ?? 'agente';
+  const took = s.ms >= 1000 ? `${(s.ms / 1000).toFixed(1)} s` : `${s.ms} ms`;
+  const err = s.status === 'error' ? ' · errore' : '';
+  if (['invoke_agent', 'plan', 'invoke_workflow', 'create_agent'].includes(s.op)) {
+    log('rec', `client · ${who} · ${s.op} · ${took}${err}`);
+    void brain.fire('agent', 'prefrontal', COLORS.lime, { size: 0.22 });
+  } else if (['chat', 'text_completion', 'generate_content'].includes(s.op)) {
+    log('llm', `client · ${who} · LLM ${s.model ?? ''} · ${s.inputTokens ?? '?'}→${s.outputTokens ?? '?'} tok · ${took}${err}`);
+    void brain.fire('prefrontal', 'broca', COLORS.orange, { size: 0.24 });
+  } else if (['execute_tool', 'embeddings', 'retrieval'].includes(s.op)) {
+    log('in', `client · ${who} · ${s.op === 'execute_tool' ? `tool ${s.tool ?? ''}` : s.op} · ${took}${err}`);
+    void brain.fire('prefrontal', 'motor', COLORS.gold, { size: 0.2 });
+  } else log('idle', `client · ${who} · ${s.op} · ${took}${err}`); // memory operations: Recordare shows its own side
+}
+function clientEvents(): void {
+  const es = new EventSource('/atlas/client-stream');
+  es.addEventListener('client.span', (ev) => { try { onClientSpan(JSON.parse((ev as MessageEvent<string>).data) as ClientSpan); } catch { /* malformed */ } });
+}
+clientEvents();
+
 // ---------- awake / asleep: the sleep palette only while the service really consolidates ----------
 let wakeTimer: number | undefined;
 function asleep(on: boolean): void {

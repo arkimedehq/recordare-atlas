@@ -33,6 +33,28 @@ key never opens the rest of the admin API (`server/allow.mjs`). It binds to 127.
 own authentication before exposing it. Without `RECORDARE_ADMIN_KEY` the key is typed in the page and sent by the
 browser. Stack: Vite + TypeScript + three.js (MIT, see `THIRD_PARTY_NOTICES.md`); licence AGPL-3.0-or-later.
 
+## Client agents (OpenTelemetry)
+
+Any agent platform instrumented with OpenTelemetry can show its own work on the brain — agents invoked, its LLM
+calls, its tools — next to Recordare's. The atlas receives traces at **`POST /v1/traces`** (OTLP/HTTP, **JSON**
+encoding: set the exporter protocol to `http/json`) with the GenAI semantic conventions (`gen_ai.*`, status
+"Development": `invoke_agent` / `plan` → prefrontal cortex, `chat` → **Broca's area**, `execute_tool` / `embeddings` /
+`retrieval` → **motor cortex**). Receiving needs `ATLAS_INGEST_TOKEN` (the exporter sends `Authorization: Bearer
+<token>`); without it the receiver is off.
+
+```sh
+OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://127.0.0.1:5175/v1/traces
+OTEL_EXPORTER_OTLP_TRACES_PROTOCOL=http/json
+OTEL_EXPORTER_OTLP_TRACES_HEADERS="Authorization=Bearer <ATLAS_INGEST_TOKEN>"
+```
+
+**Metadata only, whatever the client sends:** a span becomes one small event built from an allowlist (operation,
+agent, model, provider, tool, tokens, duration, status, person); prompts, replies, system instructions, tool arguments
+and results are never read (`server/otlp.mjs`). Nothing is stored. Spans reach the atlas when they end (exporters
+batch them), so each is shown once, on arrival, with its real duration in the log — never stretched into a fake live
+wait. To tie a span to a Recordare person, set the attribute `recordare.owner_id` (spans of another person are not
+drawn on the one on screen; spans with no person are).
+
 ## What you see
 
 **Work in progress:** a region breathes while real work runs there — an LLM call in flight (Wernicke's area, the

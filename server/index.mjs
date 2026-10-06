@@ -14,6 +14,7 @@ import { request as httpsRequest } from 'node:https';
 import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { allowed } from './allow.mjs';
+import { clientStream, receiveTraces } from './otlp.mjs';
 
 const DIST = fileURLToPath(new URL('../dist/', import.meta.url));
 const TARGET = new URL(process.env.RECORDARE_URL ?? 'http://localhost:8080');
@@ -44,5 +45,10 @@ function serve(req, res) {
 }
 
 if (!existsSync(join(DIST, 'index.html'))) { console.error('dist/ missing: run `npm run build` first'); process.exit(1); }
-createServer((req, res) => (req.url?.startsWith('/api/') ? proxy(req, res) : serve(req, res)))
+createServer((req, res) => {
+  if (req.url?.startsWith('/api/')) return proxy(req, res);
+  if (req.method === 'POST' && req.url === '/v1/traces') return receiveTraces(req, res);
+  if (req.method === 'GET' && req.url === '/atlas/client-stream') return clientStream(req, res);
+  return serve(req, res);
+})
   .listen(PORT, HOST, () => console.log(`Recordare Atlas on http://${HOST}:${PORT} → ${TARGET.origin}${KEY ? ' (admin key held by the server)' : ''}`));

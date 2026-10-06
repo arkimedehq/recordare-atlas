@@ -4,6 +4,8 @@
 import { defineConfig } from 'vite';
 // @ts-expect-error plain ES module shared with the production server
 import { allowed } from './server/allow.mjs';
+// @ts-expect-error plain ES module shared with the production server
+import { clientStream, receiveTraces } from './server/otlp.mjs';
 
 /**
  * In development the atlas talks to the service through Vite's proxy (same origin: no CORS). On a local machine the proxy can
@@ -11,6 +13,16 @@ import { allowed } from './server/allow.mjs';
  */
 const adminKey = process.env.RECORDARE_ADMIN_KEY;
 export default defineConfig({
+  plugins: [{
+    name: 'atlas-otlp', // the client-agent receiver, as in production (server/otlp.mjs)
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        if (req.method === 'POST' && req.url === '/v1/traces') return receiveTraces(req, res);
+        if (req.method === 'GET' && req.url === '/atlas/client-stream') return clientStream(req, res);
+        next();
+      });
+    },
+  }],
   server: {
     port: 5175,
     proxy: {

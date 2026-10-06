@@ -14,8 +14,8 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { type Atlas, type AtlasEdge } from './api';
 
-export type Region = 'entry' | 'thalamus' | 'llm' | 'hippoL' | 'hippoR' | 'acc' | 'cortex' | 'prefrontal' | 'agent';
-export const COLORS = { white: 0xdff6ff, cyan: 0x38e8ff, amber: 0xffb547, magenta: 0xff4fd8, lime: 0x9dff6a, violet: 0x9b7bff, red: 0xff5a6a } as const;
+export type Region = 'entry' | 'thalamus' | 'llm' | 'hippoL' | 'hippoR' | 'acc' | 'cortex' | 'prefrontal' | 'agent' | 'broca' | 'motor';
+export const COLORS = { white: 0xdff6ff, cyan: 0x38e8ff, amber: 0xffb547, magenta: 0xff4fd8, lime: 0x9dff6a, violet: 0x9b7bff, red: 0xff5a6a, gold: 0xffe066, orange: 0xff8a3d } as const;
 
 /** `anatomy`: the real brain region (the only label in only-brain mode); `role`: what it does in Recordare. */
 const HUB: Record<Region, { pos: THREE.Vector3; color: number; anatomy?: string; role?: string }> = {
@@ -29,6 +29,9 @@ const HUB: Record<Region, { pos: THREE.Vector3; color: number; anatomy?: string;
   cortex:     { pos: new THREE.Vector3(-1.8, 1.35, -0.4), color: COLORS.violet, anatomy: 'Neocorteccia', role: 'fatti' },
   prefrontal: { pos: new THREE.Vector3(0, 1.0, 2.7), color: COLORS.lime, anatomy: 'Corteccia prefrontale', role: 'richiamo' },
   agent:      { pos: new THREE.Vector3(0, 3.0, 6.2), color: COLORS.lime },
+  // The client platform's own work (OpenTelemetry GenAI spans): its LLM producing language, its tools acting.
+  broca:      { pos: new THREE.Vector3(-1.75, 0.25, 1.85), color: COLORS.orange, anatomy: 'Area di Broca', role: 'LLM del client' },
+  motor:      { pos: new THREE.Vector3(1.1, 2.05, 0.35), color: COLORS.gold, anatomy: 'Corteccia motoria', role: 'tool del client' },
 };
 /** Saltatory conduction: on an axon the impulse jumps from one node of Ranvier to the next (spacing in scene units). */
 const RANVIER = 0.12;
@@ -40,6 +43,7 @@ const TRACTS: Array<[Region, Region]> = [
   ['hippoL', 'cortex'], ['hippoR', 'cortex'], ['hippoL', 'acc'], ['hippoR', 'acc'], ['agent', 'prefrontal'],
   ['prefrontal', 'hippoL'], ['prefrontal', 'hippoR'], ['prefrontal', 'cortex'], ['prefrontal', 'acc'], ['thalamus', 'acc'],
   ['hippoL', 'hippoR'], // the hippocampal commissure: relations between the two hemispheres cross here
+  ['prefrontal', 'broca'], ['prefrontal', 'motor'], // the client's agent: speech production and action
 ];
 
 interface Neuron { id: string; pos: THREE.Vector3; color: THREE.Color; base: number; glow: number; region: Region; dim: boolean }
