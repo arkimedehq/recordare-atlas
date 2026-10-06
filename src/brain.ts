@@ -28,6 +28,8 @@ const HUB: Record<Region, { pos: THREE.Vector3; color: number; label?: string }>
   prefrontal: { pos: new THREE.Vector3(0, 1.0, 2.7), color: COLORS.lime, label: 'Prefrontale · richiamo' },
   agent:      { pos: new THREE.Vector3(0, 3.0, 6.2), color: COLORS.lime },
 };
+/** Centre of the brain, through which long synapses bend. */
+const CORE = new THREE.Vector3(0, 0.2, -0.3);
 /** Fibre tracts actually used by the data flow. */
 const TRACTS: Array<[Region, Region]> = [
   ['entry', 'thalamus'], ['thalamus', 'llm'], ['llm', 'hippoL'], ['llm', 'hippoR'], ['llm', 'cortex'], ['llm', 'acc'],
@@ -178,9 +180,10 @@ export class Brain {
       // Meaning → place: the first component picks the hemisphere, the others spread the neuron along an elongated,
       // seahorse-like volume (anterior–posterior), so related memories sit close.
       const side = region === 'hippoL' ? -1 : 1;
+      const b = ball(e.xyz);
       const local = claim
-        ? new THREE.Vector3(e.xyz[0] * 0.45, e.xyz[1] * 0.35, e.xyz[2] * 0.45)
-        : new THREE.Vector3(side * (0.08 + Math.abs(e.xyz[0]) * 0.55), e.xyz[1] * 0.42, e.xyz[2] * 1.15);
+        ? new THREE.Vector3(b.x * 0.45, b.y * 0.35, b.z * 0.45)
+        : new THREE.Vector3(side * (0.1 + Math.abs(b.x) * 0.5), b.y * 0.45, b.z * 1.1);
       const pos = HUB[region].pos.clone().add(local);
       neurons.set(e.id, { id: e.id, pos, color: claim ? new THREE.Color(COLORS.red) : kindColor(e.kind), base: 0.1 + e.importance * 0.012, glow: 0, region, dim: !!e.hidden });
     }
@@ -228,7 +231,16 @@ export class Brain {
       const a = this.neurons.get(e.a), b = this.neurons.get(e.b);
       if (!a || !b) continue;
       const [hex, k] = tone[e.kind]; const c = new THREE.Color(hex).multiplyScalar(k);
-      pos.push(a.pos.x, a.pos.y, a.pos.z, b.pos.x, b.pos.y, b.pos.z); col.push(c.r, c.g, c.b, c.r, c.g, c.b);
+      // Synapses bend through the tissue (pulled toward the brain's core, like fibres through the corpus callosum)
+      // instead of cutting straight lines across the space.
+      const mid = a.pos.clone().lerp(b.pos, 0.5);
+      const ctrl = mid.clone().lerp(CORE, Math.min(0.6, a.pos.distanceTo(b.pos) * 0.25));
+      const curve = new THREE.QuadraticBezierCurve3(a.pos, ctrl, b.pos);
+      const segs = a.pos.distanceTo(b.pos) > 0.8 ? 8 : 2, pts = curve.getPoints(segs);
+      for (let i = 0; i < segs; i++) {
+        const p = pts[i]!, q = pts[i + 1]!;
+        pos.push(p.x, p.y, p.z, q.x, q.y, q.z); col.push(c.r, c.g, c.b, c.r, c.g, c.b);
+      }
     }
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
@@ -281,6 +293,12 @@ export class Brain {
 
   regionOf(id: string): Region | undefined { return this.neurons.get(id)?.region; }
 
+  /** A slow orbit of the point of view (screensaver): the camera moves, the data never does on its own. */
+  setOrbit(on: boolean): void {
+    this.controls.autoRotate = on && !matchMedia('(prefers-reduced-motion: reduce)').matches;
+    this.controls.autoRotateSpeed = 0.35;
+  }
+
   private resize(): void {
     this.camera.aspect = innerWidth / innerHeight; this.camera.updateProjectionMatrix();
     this.renderer.setSize(innerWidth, innerHeight); this.composer.setSize(innerWidth, innerHeight);
@@ -327,6 +345,13 @@ export class Brain {
     }
     requestAnimationFrame(this.loop);
   };
+}
+
+/** Cube → ball: principal components span a box; this keeps their order but rounds the cloud like tissue. */
+function ball(xyz: [number, number, number]): THREE.Vector3 {
+  const v = new THREE.Vector3(...xyz);
+  const inf = Math.max(Math.abs(v.x), Math.abs(v.y), Math.abs(v.z)), l2 = v.length();
+  return l2 > 0 ? v.multiplyScalar(inf / l2) : v;
 }
 
 /** A tract travelled backwards. */

@@ -12,3 +12,7 @@ RECORDARE_URL=http://localhost:8080 RECORDARE_ADMIN_KEY=<admin key> npm run dev 
 
 With `RECORDARE_ADMIN_KEY` the local dev proxy adds the admin key itself, so the browser never holds it; without it,
 type the key in the header. Stack: Vite + TypeScript + three.js (MIT), dependencies only.
+
+**Only-brain mode (screensaver):** the "Solo cervello" button, the `B` key or `http://127.0.0.1:5175/#onlybrain` hide
+everything but the brain (full screen, slow orbit of the camera — the view moves, the data never does on its own);
+`Esc` or `B` to exit.

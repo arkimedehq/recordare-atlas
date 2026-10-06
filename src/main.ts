@@ -168,3 +168,27 @@ async function onEvent(e: TelemetryEvent, ownerId: string): Promise<void> {
       break;
   }
 }
+
+// ---------- only-brain mode (screensaver) ----------
+let pointerTimer: number | undefined;
+function setOnlyBrain(on: boolean): void {
+  document.body.classList.toggle('only-brain', on);
+  brain.setOrbit(on);
+  if (on) { document.documentElement.requestFullscreen?.().catch(() => undefined); history.replaceState(null, '', '#onlybrain'); }
+  else { if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined); history.replaceState(null, '', location.pathname); }
+}
+$('only').addEventListener('click', () => setOnlyBrain(true));
+$('exit-only').addEventListener('click', () => setOnlyBrain(false));
+addEventListener('keydown', (ev) => {
+  if (ev.target instanceof HTMLInputElement || ev.target instanceof HTMLSelectElement) return;
+  if (ev.key === 'Escape') setOnlyBrain(false);
+  if (ev.key === 'b' || ev.key === 'B') setOnlyBrain(!document.body.classList.contains('only-brain'));
+});
+addEventListener('mousemove', () => {
+  if (!document.body.classList.contains('only-brain')) return;
+  document.body.classList.add('pointer');
+  window.clearTimeout(pointerTimer);
+  pointerTimer = window.setTimeout(() => document.body.classList.remove('pointer'), 2500);
+});
+if (location.hash === '#onlybrain') setOnlyBrain(true);
+addEventListener('hashchange', () => setOnlyBrain(location.hash === '#onlybrain'));

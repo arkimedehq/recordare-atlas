@@ -76,3 +76,13 @@ footer.hud { left: 16px; right: 16px; bottom: calc(14px + env(safe-area-inset-bo
   aside.log { left: 16px; right: 16px; width: auto; top: auto; bottom: 150px; max-height: 24%; }
   footer.hud { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
+
+/* Only-brain mode (screensaver): the brain alone; the cursor hides until the mouse moves. */
+body.only-brain .hud, body.only-brain .label, body.only-brain .scan { display: none; }
+body.only-brain { cursor: none; }
+body.only-brain.pointer { cursor: default; }
+.exit-only { display: none; position: fixed; z-index: 3; right: 16px; top: calc(14px + env(safe-area-inset-top, 0px));
+  font: 600 11px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); background: var(--panel);
+  border: 1px solid var(--line); padding: 7px 12px; border-radius: 3px; cursor: pointer; }
+body.only-brain.pointer .exit-only { display: block; }
+#only { color: var(--ink); background: transparent; border-color: var(--line); }
