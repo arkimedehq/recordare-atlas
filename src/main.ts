@@ -96,6 +96,15 @@ function scheduleRefresh(ownerId: string): void {
 }
 
 const taskOf = (promptId: string) => promptId.split('.')[0] ?? promptId;
+
+// ---------- awake / asleep: the sleep palette only while the service really consolidates ----------
+let wakeTimer: number | undefined;
+function asleep(on: boolean): void {
+  brain.setSleep(on);
+  const el = $('phase'); el.textContent = on ? 'sonno · consolidamento' : 'veglia'; el.classList.toggle('asleep', on);
+  window.clearTimeout(wakeTimer);
+  if (on) wakeTimer = window.setTimeout(() => asleep(false), 60_000); // no news for a minute: the night is over
+}
 const hippo = (id: string): Region => brain.regionOf(id) ?? 'hippoR';
 
 async function onEvent(e: TelemetryEvent, ownerId: string): Promise<void> {
@@ -114,7 +123,7 @@ async function onEvent(e: TelemetryEvent, ownerId: string): Promise<void> {
       counters.llm++; counters.tok += (Number(e['inputTokens']) || 0) + (Number(e['outputTokens']) || 0); show();
       log('llm', `LLM ${String(e['promptId'])} · ${String(e['model'])} · ${String(e['inputTokens'])}→${String(e['outputTokens'])} tok · ${String(e['latencyMs'])} ms${e['status'] === 'ok' ? '' : ` · ${String(e['status'])}`}`, e.at);
       if (task === 'resolve') void brain.fire('hippoR', 'acc', COLORS.red);
-      else if (task === 'digest') void brain.fire('hippoL', 'cortex', COLORS.violet);
+      else if (task === 'digest') { asleep(true); void brain.fire('hippoL', 'cortex', COLORS.violet); }
       else void brain.fire('thalamus', 'llm', COLORS.amber, { size: 0.24 + Math.min(0.3, (Number(e['inputTokens']) || 0) / 20000) });
       break;
     }
@@ -152,11 +161,13 @@ async function onEvent(e: TelemetryEvent, ownerId: string): Promise<void> {
       break;
     }
     case 'digest.written':
+      asleep(true);
       log('sleep', `diario ${e['level'] === 'month' ? 'del mese' : 'del giorno'} · ${String(e['period'])}`, e.at);
       void brain.fire('hippoR', 'cortex', COLORS.violet);
       scheduleRefresh(ownerId);
       break;
     case 'consolidation.finished':
+      asleep(false);
       log('sleep', `consolidamento · ${String(e['days'])} giorni, ${String(e['months'])} mesi, ${String(e['llmCalls'])} chiamate`, e.at);
       break;
     case 'episode.forgotten':
@@ -169,11 +180,23 @@ async function onEvent(e: TelemetryEvent, ownerId: string): Promise<void> {
   }
 }
 
+// ---------- rotation (normal view: on by default, remembered; only-brain view: always on) ----------
+let rotate = true;
+try { rotate = localStorage.getItem('atlas-rotate') !== 'off'; } catch { /* storage unavailable */ }
+function setRotate(on: boolean): void {
+  rotate = on;
+  $('rotate').setAttribute('aria-pressed', String(on));
+  try { localStorage.setItem('atlas-rotate', on ? 'on' : 'off'); } catch { /* storage unavailable */ }
+  if (!document.body.classList.contains('only-brain')) brain.setOrbit(on);
+}
+setRotate(rotate);
+$('rotate').addEventListener('click', () => setRotate(!rotate));
+
 // ---------- only-brain mode (screensaver) ----------
 let pointerTimer: number | undefined;
 function setOnlyBrain(on: boolean): void {
   document.body.classList.toggle('only-brain', on);
-  brain.setOrbit(on);
+  brain.setOrbit(on || rotate);
   if (on) { document.documentElement.requestFullscreen?.().catch(() => undefined); history.replaceState(null, '', '#onlybrain'); }
   else { if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined); history.replaceState(null, '', location.pathname); }
 }
@@ -183,6 +206,7 @@ addEventListener('keydown', (ev) => {
   if (ev.target instanceof HTMLInputElement || ev.target instanceof HTMLSelectElement) return;
   if (ev.key === 'Escape') setOnlyBrain(false);
   if (ev.key === 'b' || ev.key === 'B') setOnlyBrain(!document.body.classList.contains('only-brain'));
+  if (ev.key === 'r' || ev.key === 'R') setRotate(!rotate);
 });
 addEventListener('mousemove', () => {
   if (!document.body.classList.contains('only-brain')) return;

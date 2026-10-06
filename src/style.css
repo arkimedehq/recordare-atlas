@@ -85,4 +85,7 @@ body.only-brain.pointer { cursor: default; }
   font: 600 11px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); background: var(--panel);
   border: 1px solid var(--line); padding: 7px 12px; border-radius: 3px; cursor: pointer; }
 body.only-brain.pointer .exit-only { display: block; }
-#only { color: var(--ink); background: transparent; border-color: var(--line); }
+#only, .controls .toggle { color: var(--ink); background: transparent; border-color: var(--line); }
+.controls .toggle[aria-pressed="true"] { color: var(--cyan); background: rgba(56,232,255,.1); border-color: var(--cyan); }
+.phase { font: 600 10px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); padding: 0 4px; }
+.phase.asleep { color: var(--violet); }

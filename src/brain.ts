@@ -83,6 +83,13 @@ export class Brain {
   private readonly pulseGeo = new THREE.BufferGeometry();
   private readonly hubPoints: THREE.Points;
   private readonly MAXP = 3000;
+  private readonly bloom: UnrealBloomPass;
+  /** 0 = awake, 1 = asleep (nightly consolidation running): the palette follows it smoothly. */
+  private sleep = 0;
+  private sleepTarget = 0;
+  private readonly AWAKE = new THREE.Color(0x04060b);
+  private readonly ASLEEP = new THREE.Color(0x0a0520);
+  private readonly bg = new THREE.Color(0x04060b);
 
   constructor(host: HTMLElement) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
@@ -98,7 +105,8 @@ export class Brain {
     this.controls.target.set(0, 0.3, 0);
     this.composer = new EffectComposer(this.renderer);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
-    this.composer.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 1.05, 0.6, 0.06));
+    this.bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 1.05, 0.6, 0.06);
+    this.composer.addPass(this.bloom);
 
     this.buildShell();
     this.hubPoints = this.buildHubs();
@@ -360,11 +368,14 @@ export class Brain {
 
   regionOf(id: string): Region | undefined { return this.neurons.get(id)?.region; }
 
-  /** A slow orbit of the point of view (screensaver): the camera moves, the data never does on its own. */
+  /** A slow orbit of the point of view: the camera moves, the data never does on its own. */
   setOrbit(on: boolean): void {
     this.controls.autoRotate = on && !matchMedia('(prefers-reduced-motion: reduce)').matches;
     this.controls.autoRotateSpeed = 0.35;
   }
+
+  /** Sleep palette while the service really consolidates (deeper violet night, stronger glow); awake otherwise. */
+  setSleep(on: boolean): void { this.sleepTarget = on ? 1 : 0; }
 
   private resize(): void {
     this.camera.aspect = innerWidth / innerHeight; this.camera.updateProjectionMatrix();
@@ -374,6 +385,13 @@ export class Brain {
   private readonly proj = new THREE.Vector3();
   private loop = (): void => {
     const dt = Math.min(this.clock.getDelta(), 0.05);
+    if (this.sleep !== this.sleepTarget) {
+      this.sleep += Math.sign(this.sleepTarget - this.sleep) * Math.min(Math.abs(this.sleepTarget - this.sleep), dt / 1.5);
+      this.bg.copy(this.AWAKE).lerp(this.ASLEEP, this.sleep);
+      this.renderer.setClearColor(this.bg, 1); (this.scene.fog as THREE.FogExp2).color.copy(this.bg);
+      this.bloom.strength = 1.05 + 0.4 * this.sleep;
+      document.body.style.background = `#${this.bg.getHexString()}`;
+    }
     // neurons: steady light + the glow events leave behind
     if (this.neuronPoints) {
       const order = this.neuronPoints.userData.order as string[];
