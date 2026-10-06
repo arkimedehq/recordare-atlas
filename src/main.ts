@@ -120,13 +120,25 @@ async function onEvent(e: TelemetryEvent, ownerId: string): Promise<void> {
     case 'extraction.started':
       log('in', `estrazione · finestra di ${String(e['messages'])} messaggi`, e.at);
       break;
+    case 'llm.started': {
+      // The request leaves now; the LLM region stays lit until the answer comes back (llm.call).
+      const task = String(e['task']);
+      brain.wait('llm', 1);
+      if (task === 'resolve') void brain.fire('hippoR', 'llm', COLORS.red, { size: 0.2 });
+      else if (task === 'digest') { asleep(true); void brain.fire('hippoL', 'llm', COLORS.violet, { size: 0.2 }); }
+      else void brain.fire('thalamus', 'llm', COLORS.amber, { size: 0.24 });
+      log('llm', `LLM in corso · ${String(e['promptId'])}…`, e.at);
+      break;
+    }
     case 'llm.call': {
       const task = taskOf(String(e['promptId']));
+      brain.wait('llm', -1);
       counters.llm++; counters.tok += (Number(e['inputTokens']) || 0) + (Number(e['outputTokens']) || 0); show();
       log('llm', `LLM ${String(e['promptId'])} · ${String(e['model'])} · ${String(e['inputTokens'])}→${String(e['outputTokens'])} tok · ${String(e['latencyMs'])} ms${e['status'] === 'ok' ? '' : ` · ${String(e['status'])}`}`, e.at);
-      if (task === 'resolve') void brain.fire('hippoR', 'acc', COLORS.red);
-      else if (task === 'digest') { asleep(true); void brain.fire('hippoL', 'cortex', COLORS.violet); }
-      else void brain.fire('thalamus', 'llm', COLORS.amber, { size: 0.24 + Math.min(0.3, (Number(e['inputTokens']) || 0) / 20000) });
+      // The answer leaves the LLM: verdicts to the conflict region, diaries to the cortex; extraction answers become
+      // memory.written impulses (llm → the exact neuron).
+      if (task === 'resolve') void brain.fire('llm', 'acc', COLORS.red);
+      else if (task === 'digest') void brain.fire('llm', 'cortex', COLORS.violet);
       break;
     }
     case 'memory.written': {

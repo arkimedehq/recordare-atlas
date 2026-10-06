@@ -71,6 +71,9 @@ export class Brain {
   private readonly clock = new THREE.Clock();
   private readonly labels: Array<{ el: HTMLElement; pos: THREE.Vector3; region: Region }> = [];
   private readonly heat = new Map<Region, number>();
+  /** Calls in flight per region (a real wait: the LLM is working); the region breathes until they return. */
+  private readonly busy = new Map<Region, number>();
+  private readonly hubRange = new Map<Region, { from: number; to: number; color: THREE.Color }>();
   private readonly tracts = new Map<string, Path>();
   /** Inside each hippocampus the input crosses dentate gyrus → CA3 → CA1 before reaching a memory (trisynaptic loop). */
   private readonly circuits = new Map<Region, Path>();
@@ -145,6 +148,7 @@ export class Brain {
     for (const [name, h] of Object.entries(HUB) as Array<[Region, (typeof HUB)[Region]]>) {
       if (name === 'entry' || name === 'agent') continue;
       const c = new THREE.Color(h.color), r = rnd(name);
+      this.hubRange.set(name, { from: size.length, to: size.length + 60, color: c });
       for (let i = 0; i < 60; i++) {
         const d = new THREE.Vector3(r() - 0.5, r() - 0.5, r() - 0.5).normalize().multiplyScalar(Math.pow(r(), 1.5) * 0.3);
         pos.push(h.pos.x + d.x, h.pos.y + d.y, h.pos.z + d.z); col.push(c.r * 0.6, c.g * 0.6, c.b * 0.6); size.push(0.06 + r() * 0.06);
@@ -368,6 +372,9 @@ export class Brain {
 
   regionOf(id: string): Region | undefined { return this.neurons.get(id)?.region; }
 
+  /** A call left (+1) or came back (−1) for this region. */
+  wait(region: Region, delta: 1 | -1): void { this.busy.set(region, Math.max(0, (this.busy.get(region) ?? 0) + delta)); }
+
   /** A slow orbit of the point of view: the camera moves, the data never does on its own. */
   setOrbit(on: boolean): void {
     this.controls.autoRotate = on && !matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -407,6 +414,15 @@ export class Brain {
     }
     // hubs glow only after an arrival
     for (const [r, h] of this.heat) this.heat.set(r, Math.max(0, h - dt * 0.7));
+    const now = this.clock.elapsedTime;
+    for (const [r, n] of this.busy) if (n > 0) this.heat.set(r, Math.max(this.heat.get(r) ?? 0, 0.55 + 0.3 * Math.sin(now * 4)));
+    // region hubs light up with their heat (arrivals, calls in flight)
+    const hc = this.hubPoints.geometry.getAttribute('color') as THREE.BufferAttribute;
+    for (const [r, { from, to, color }] of this.hubRange) {
+      const f = 0.6 + (this.heat.get(r) ?? 0) * 1.1;
+      for (let i = from; i < to; i++) hc.setXYZ(i, color.r * f, color.g * f, color.b * f);
+    }
+    hc.needsUpdate = true;
     for (const l of this.labels) l.el.classList.toggle('hot', (this.heat.get(l.region) ?? 0) > 0.15);
     // impulses
     const p = this.pulseGeo.getAttribute('position') as THREE.BufferAttribute, c = this.pulseGeo.getAttribute('color') as THREE.BufferAttribute, s = this.pulseGeo.getAttribute('size') as THREE.BufferAttribute;
