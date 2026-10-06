@@ -36,15 +36,15 @@ browser. Stack: Vite + TypeScript + three.js (MIT, see `THIRD_PARTY_NOTICES.md`)
 ## Client agents (OpenTelemetry)
 
 Any agent platform instrumented with OpenTelemetry can show its own work on the brain — agents invoked, its LLM
-calls, its tools — next to Recordare's. The atlas receives traces at **`POST /v1/traces`** (OTLP/HTTP, **JSON**
-encoding: set the exporter protocol to `http/json`) with the GenAI semantic conventions (`gen_ai.*`, status
+calls, its tools — next to Recordare's. The atlas receives traces at **`POST /v1/traces`** (OTLP/HTTP, protobuf or
+JSON, gzip allowed — the SDK defaults work; gRPC is not served) with the GenAI semantic conventions (`gen_ai.*`, status
 "Development": `invoke_agent` / `plan` → prefrontal cortex, `chat` → **Broca's area**, `execute_tool` / `embeddings` /
 `retrieval` → **motor cortex**). Receiving needs `ATLAS_INGEST_TOKEN` (the exporter sends `Authorization: Bearer
 <token>`); without it the receiver is off.
 
 ```sh
 OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://127.0.0.1:5175/v1/traces
-OTEL_EXPORTER_OTLP_TRACES_PROTOCOL=http/json
+OTEL_EXPORTER_OTLP_TRACES_PROTOCOL=http/protobuf   # or http/json
 OTEL_EXPORTER_OTLP_TRACES_HEADERS="Authorization=Bearer <ATLAS_INGEST_TOKEN>"
 ```
 
