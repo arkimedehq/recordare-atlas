@@ -1,13 +1,14 @@
 {
-  "name": "recordare-dashboard",
+  "name": "recordare-atlas",
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Neural Atlas: live view of a Recordare installation (M5b). Real telemetry only.",
+  "description": "Recordare Atlas: a live brain view of a Recordare installation's memory. Optional companion of Recordare; real events only.",
   "license": "AGPL-3.0-or-later",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "start": "node server/index.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -18,5 +19,8 @@
     "@types/three": "^0.170.0",
     "typescript": "~5.9",
     "vite": "^7.3.7"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }
