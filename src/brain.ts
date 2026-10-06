@@ -150,10 +150,15 @@ export class Brain {
       const pts = curve.getPoints(48), ca = new THREE.Color(HUB[a].color), cb = new THREE.Color(HUB[b].color);
       for (let i = 0; i < pts.length - 1; i++) {
         const p = pts[i]!, q = pts[i + 1]!, t = i / pts.length;
-        const col = ca.clone().lerp(cb, t).multiplyScalar(0.16);
+        const col = ca.clone().lerp(cb, t).multiplyScalar(0.55);
         linePos.push(p.x, p.y, p.z, q.x, q.y, q.z); lineCol.push(col.r, col.g, col.b, col.r, col.g, col.b);
       }
-      for (let i = 1; i < 6; i++) { const p = curve.getPoint(i / 6); const col = ca.clone().lerp(cb, i / 6).multiplyScalar(0.5); relayPos.push(p.x, p.y, p.z); relayCol.push(col.r, col.g, col.b); relaySize.push(0.09); }
+      // The bundle: many small glowing points along the axon (thickness), plus brighter relay neurons.
+      for (let i = 1; i < 60; i++) {
+        const p = curve.getPoint(i / 60); const col = ca.clone().lerp(cb, i / 60).multiplyScalar(0.35);
+        relayPos.push(p.x + (r() - 0.5) * 0.05, p.y + (r() - 0.5) * 0.05, p.z + (r() - 0.5) * 0.05); relayCol.push(col.r, col.g, col.b); relaySize.push(0.05);
+      }
+      for (let i = 1; i < 6; i++) { const p = curve.getPoint(i / 6); const col = ca.clone().lerp(cb, i / 6).multiplyScalar(0.8); relayPos.push(p.x, p.y, p.z); relayCol.push(col.r, col.g, col.b); relaySize.push(0.14); }
     }
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(linePos, 3));
@@ -217,8 +222,8 @@ export class Brain {
     if (this.synapses) { this.scene.remove(this.synapses); this.synapses.geometry.dispose(); }
     const pos: number[] = [], col: number[] = [];
     const tone: Record<AtlasEdge['kind'], [number, number]> = {
-      similar: [COLORS.cyan, 0.16], people: [COLORS.magenta, 0.06], corrects: [COLORS.red, 0.5], duplicate: [0x8899aa, 0.3],
-      outcome: [COLORS.amber, 0.45], rescheduled: [COLORS.amber, 0.35],
+      similar: [COLORS.cyan, 0.05], people: [COLORS.magenta, 0.025], corrects: [COLORS.red, 0.22], duplicate: [0x8899aa, 0.12],
+      outcome: [COLORS.amber, 0.2], rescheduled: [COLORS.amber, 0.15],
     };
     // "Same people" links are many (a partner appears everywhere): keep two per neuron so the network stays readable.
     const peopleCount = new Map<string, number>();
