@@ -30,14 +30,14 @@ export const atlas = (key: string, ownerId: string) => get<Atlas>(`/api/v1/admin
  * Server-Sent Events over fetch (EventSource cannot send the admin key as a header). Reconnects with backoff;
  * returns a stop function.
  */
-export function stream(key: string, ownerId: string, onEvent: (e: TelemetryEvent) => void, onState: (s: 'on' | 'off' | 'err') => void): () => void {
+export function stream(key: string, ownerId: string | null, onEvent: (e: TelemetryEvent) => void, onState: (s: 'on' | 'off' | 'err') => void): () => void {
   let stopped = false;
   let ctrl: AbortController | null = null;
   const run = async (attempt: number): Promise<void> => {
     if (stopped) return;
     ctrl = new AbortController();
     try {
-      const res = await fetch(`/api/v1/admin/telemetry/stream?owner=${encodeURIComponent(ownerId)}`, {
+      const res = await fetch(`/api/v1/admin/telemetry/stream${ownerId ? `?owner=${encodeURIComponent(ownerId)}` : ''}`, {
         headers: { ...auth(key), accept: 'text/event-stream' }, signal: ctrl.signal,
       });
       if (!res.ok || !res.body) throw new Error(String(res.status));

@@ -38,8 +38,9 @@ void loadOwners(); // with a local proxy holding the key, no key is needed here
 async function loadOwners(): Promise<void> {
   try {
     const list = await owners(keyInput.value);
-    ownerSelect.replaceChildren(...list.map((o) => Object.assign(document.createElement('option'), { value: o.id, textContent: `${o.name} · ${o.episodes} episodi` })));
-    ownerSelect.disabled = list.length === 0;
+    const follow = Object.assign(document.createElement('option'), { value: FOLLOW, textContent: 'Segui l\'attività (live)' });
+    ownerSelect.replaceChildren(follow, ...list.map((o) => Object.assign(document.createElement('option'), { value: o.id, textContent: `${o.name} · ${o.episodes} episodi` })));
+    ownerSelect.disabled = false;
     try { if (keyInput.value) sessionStorage.setItem('atlas-key', keyInput.value); } catch { /* storage unavailable */ }
     setStatus('off', `${list.length} persone · scegli e collega`);
   } catch (err) {
@@ -52,13 +53,32 @@ $<HTMLFormElement>('connect').addEventListener('submit', (ev) => {
   void connect(ownerSelect.value);
 });
 
-async function connect(ownerId: string): Promise<void> {
-  if (!ownerId) { await loadOwners(); return; }
+/** "Follow": listen to the whole service and switch to whichever owner is active (evaluation runs create new ones). */
+const FOLLOW = '__follow__';
+let current: string | null = null;
+
+async function connect(choice: string): Promise<void> {
+  if (!choice) { await loadOwners(); return; }
   stopStream?.();
-  await refresh(ownerId);
-  stopStream = stream(keyInput.value, ownerId, (e) => void onEvent(e, ownerId), (s) =>
-    setStatus(s, s === 'on' ? 'in ascolto · eventi reali' : s === 'err' ? 'stream interrotto · riprovo' : 'stream chiuso · riprovo'));
-  log('idle', 'collegato: ogni impulso da qui in poi è un evento reale del servizio');
+  const follow = choice === FOLLOW;
+  current = follow ? null : choice;
+  if (current) await refresh(current);
+  stopStream = stream(keyInput.value, follow ? null : choice, (e) => void route(e, follow), (s) =>
+    setStatus(s, s === 'on' ? (follow ? 'segue l\'attività · eventi reali' : 'in ascolto · eventi reali') : s === 'err' ? 'stream interrotto · riprovo' : 'stream chiuso · riprovo'));
+  log('idle', follow ? 'in ascolto di tutto il servizio: mostra la persona attiva' : 'collegato: ogni impulso da qui in poi è un evento reale del servizio');
+}
+
+/** Events of the shown owner animate the brain; in follow mode, activity of another owner switches the view to them. */
+async function route(e: TelemetryEvent, follow: boolean): Promise<void> {
+  const owner = typeof e.ownerId === 'string' ? e.ownerId : null;
+  if (follow && owner && owner !== current) {
+    current = owner;
+    counters.llm = 0; counters.tok = 0; counters.rec = 0;
+    log('idle', 'attività di un\'altra persona: cambio vista');
+    await refresh(owner).catch(() => undefined);
+  }
+  if (current && owner && owner !== current) return;
+  await onEvent(e, current ?? owner ?? '');
 }
 
 async function refresh(ownerId: string): Promise<void> {
