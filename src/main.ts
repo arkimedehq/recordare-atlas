@@ -81,6 +81,7 @@ let shownName = '';
 async function connect(choice: string): Promise<void> {
   if (!choice) { await loadOwners(); return; }
   stopStream?.();
+  working.clear(); brain.idle();
   const follow = choice === FOLLOW;
   following = follow;
   current = follow ? latestOwner : choice; // follow starts from the person active most recently
@@ -97,6 +98,7 @@ async function route(e: TelemetryEvent, follow: boolean): Promise<void> {
   const owner = typeof e.ownerId === 'string' ? e.ownerId : null;
   if (follow && owner && owner !== current && Date.now() - lastSeen > STAY_MS) {
     current = owner;
+    working.clear(); brain.idle(); // the previous person's jobs end out of sight
     log('idle', 'attività di un\'altra persona: cambio vista');
     await refresh(owner).catch(() => undefined);
   }
@@ -126,6 +128,20 @@ function scheduleRefresh(ownerId: string): void {
 
 const taskOf = (promptId: string) => promptId.split('.')[0] ?? promptId;
 
+/** Where each kind of work happens: embeddings of incoming messages in the thalamus (ingest), the context read and the
+ * embeddings of new memories in the hippocampi, a recall in the prefrontal cortex, a consolidation in the cortex. */
+const WORK_REGIONS: Record<string, Region[]> = {
+  'embed.messages': ['thalamus'], context: ['hippoL', 'hippoR'], 'embed.memories': ['hippoL', 'hippoR'],
+  recall: ['prefrontal'], consolidation: ['cortex'],
+};
+const working = new Map<number, Region[]>();
+function endWork(id: number): void {
+  const regions = working.get(id);
+  if (!regions) return;
+  working.delete(id);
+  regions.forEach((r) => brain.wait(r, -1));
+}
+
 // ---------- awake / asleep: the sleep palette only while the service really consolidates ----------
 let wakeTimer: number | undefined;
 function asleep(on: boolean): void {
@@ -142,6 +158,20 @@ async function onEvent(e: TelemetryEvent, ownerId: string): Promise<void> {
       const n = Math.min(Number(e['messages']) || 1, 6);
       log('in', `messaggi ricevuti · ${String(e['messages'])}`, e.at);
       for (let i = 0; i < n; i++) window.setTimeout(() => void brain.fire('entry', 'thalamus', COLORS.white, { size: 0.2 }), i * 120);
+      break;
+    }
+    case 'work.started':
+    case 'work.finished': {
+      // Real work without an LLM call (embeddings, the context read, a recall, a consolidation): its regions breathe
+      // from start to finish. Matched by id, so a lost "finished" cannot leave a region lit forever.
+      const regions = WORK_REGIONS[String(e['op'])] ?? [];
+      const id = Number(e['id']);
+      if (e.type === 'work.started') {
+        working.set(id, regions);
+        regions.forEach((r) => brain.wait(r, 1));
+        window.setTimeout(() => endWork(id), 120_000);
+      } else endWork(id);
+      if (e['op'] === 'consolidation') asleep(e.type === 'work.started');
       break;
     }
     case 'extraction.started':

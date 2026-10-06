@@ -21,7 +21,8 @@ export const COLORS = { white: 0xdff6ff, cyan: 0x38e8ff, amber: 0xffb547, magent
 const HUB: Record<Region, { pos: THREE.Vector3; color: number; anatomy?: string; role?: string }> = {
   entry:      { pos: new THREE.Vector3(0, 3.6, -4.2), color: COLORS.white },
   thalamus:   { pos: new THREE.Vector3(0, 0.35, -0.2), color: COLORS.white, anatomy: 'Talamo', role: 'ingest' },
-  llm:        { pos: new THREE.Vector3(1.9, 0.8, 1.1), color: COLORS.amber, role: 'LLM' },
+  // Language comprehension: the LLM reads the messages and extracts their meaning (Wernicke's area, by analogy).
+  llm:        { pos: new THREE.Vector3(1.9, 0.8, 1.1), color: COLORS.amber, anatomy: 'Area di Wernicke', role: 'LLM' },
   hippoL:     { pos: new THREE.Vector3(-1.15, -0.55, -0.5), color: COLORS.cyan, anatomy: 'Ippocampo', role: 'episodi' },
   hippoR:     { pos: new THREE.Vector3(1.15, -0.55, -0.5), color: COLORS.cyan, anatomy: 'Ippocampo' },
   acc:        { pos: new THREE.Vector3(0, 1.4, 0.9), color: COLORS.red, anatomy: 'Cingolo anteriore', role: 'terzi' },
@@ -155,7 +156,7 @@ export class Brain {
         pos.push(h.pos.x + d.x, h.pos.y + d.y, h.pos.z + d.z); col.push(c.r * 0.6, c.g * 0.6, c.b * 0.6); size.push(0.06 + r() * 0.06);
       }
       // The normal view shows "anatomy · role" (one label for the pair of hippocampi); only-brain mode shows the
-      // anatomy alone, on both hippocampi, and hides the labels with no real region (the LLM).
+      // anatomy alone, on both hippocampi (the LLM shows the language-comprehension area it stands for).
       if (h.anatomy || h.role) {
         const el = document.createElement('div'); el.className = 'label'; el.style.color = `#${c.getHexString()}`;
         if (!h.anatomy) el.classList.add('no-anatomy');
@@ -380,8 +381,11 @@ export class Brain {
 
   regionOf(id: string): Region | undefined { return this.neurons.get(id)?.region; }
 
-  /** A call left (+1) or came back (−1) for this region. */
+  /** A call or a job started (+1) or ended (−1) in this region: it breathes while anything is running there. */
   wait(region: Region, delta: 1 | -1): void { this.busy.set(region, Math.max(0, (this.busy.get(region) ?? 0) + delta)); }
+
+  /** Clears every wait (a reconnection may have lost the ends of jobs in flight). */
+  idle(): void { this.busy.clear(); }
 
   /** A slow orbit of the point of view: the camera moves, the data never does on its own. */
   setOrbit(on: boolean): void {

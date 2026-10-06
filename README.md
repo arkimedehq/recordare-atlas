@@ -13,6 +13,10 @@ RECORDARE_URL=http://localhost:8080 RECORDARE_ADMIN_KEY=<admin key> npm run dev 
 With `RECORDARE_ADMIN_KEY` the local dev proxy adds the admin key itself, so the browser never holds it; without it,
 type the key in the header. Stack: Vite + TypeScript + three.js (MIT), dependencies only.
 
+**Work in progress:** a region breathes while real work runs there — an LLM call in flight (Wernicke's area, the
+LLM), embeddings of incoming messages (thalamus), the context read and the embeddings of new memories (hippocampi), a
+recall (prefrontal cortex), a consolidation (cortex, with the sleep palette). With no work running, the brain is still.
+
 **Counters:** episodes, facts · notes and claims come from the snapshot; LLM calls, tokens and recalls are the
 person's lifetime totals (from the service), then grow with live events. **Follow mode** shows one person at a time:
 it stays on the shown person while they are active and moves to another only after 20 s without their events.
