@@ -43,6 +43,8 @@ async function loadOwners(): Promise<void> {
     ownerSelect.disabled = false;
     try { if (keyInput.value) sessionStorage.setItem('atlas-key', keyInput.value); } catch { /* storage unavailable */ }
     setStatus('off', `${list.length} persone · scegli e collega`);
+    // Opened without a running stream: follow the service at once (a reload never leaves the brain disconnected).
+    if (!stopStream) { ownerSelect.value = FOLLOW; void connect(FOLLOW); }
   } catch (err) {
     setStatus('err', `chiave non valida o servizio non raggiungibile (${(err as Error).message})`);
   }
