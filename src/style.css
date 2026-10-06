@@ -78,7 +78,12 @@ footer.hud { left: 16px; right: 16px; bottom: calc(14px + env(safe-area-inset-bo
 }
 
 /* Only-brain mode (screensaver): the brain alone; the cursor hides until the mouse moves. */
-body.only-brain .hud, body.only-brain .label, body.only-brain .scan { display: none; }
+body.only-brain .hud, body.only-brain .scan { display: none; }
+/* Labels: "anatomy · role" in the normal view; only the real brain region in only-brain mode. */
+.label.anatomy-only { display: none; }
+body.only-brain .label .role, body.only-brain .label.no-anatomy { display: none; }
+body.only-brain .label.anatomy-only { display: block; }
+body.only-brain .label { opacity: .55; }
 /* The person on screen: in the header the status says it; in only-brain mode a quiet caption. */
 .who { display: none; }
 body.only-brain .who { display: block; position: fixed; z-index: 2; left: 18px; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); margin: 0;

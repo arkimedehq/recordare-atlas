@@ -17,15 +17,16 @@ import { type Atlas, type AtlasEdge } from './api';
 export type Region = 'entry' | 'thalamus' | 'llm' | 'hippoL' | 'hippoR' | 'acc' | 'cortex' | 'prefrontal' | 'agent';
 export const COLORS = { white: 0xdff6ff, cyan: 0x38e8ff, amber: 0xffb547, magenta: 0xff4fd8, lime: 0x9dff6a, violet: 0x9b7bff, red: 0xff5a6a } as const;
 
-const HUB: Record<Region, { pos: THREE.Vector3; color: number; label?: string }> = {
+/** `anatomy`: the real brain region (the only label in only-brain mode); `role`: what it does in Recordare. */
+const HUB: Record<Region, { pos: THREE.Vector3; color: number; anatomy?: string; role?: string }> = {
   entry:      { pos: new THREE.Vector3(0, 3.6, -4.2), color: COLORS.white },
-  thalamus:   { pos: new THREE.Vector3(0, 0.35, -0.2), color: COLORS.white, label: 'Talamo · ingest' },
-  llm:        { pos: new THREE.Vector3(1.9, 0.8, 1.1), color: COLORS.amber, label: 'LLM' },
-  hippoL:     { pos: new THREE.Vector3(-1.15, -0.55, -0.5), color: COLORS.cyan, label: 'Ippocampo' },
-  hippoR:     { pos: new THREE.Vector3(1.15, -0.55, -0.5), color: COLORS.cyan },
-  acc:        { pos: new THREE.Vector3(0, 1.4, 0.9), color: COLORS.red, label: 'Cingolo · terzi' },
-  cortex:     { pos: new THREE.Vector3(-1.8, 1.35, -0.4), color: COLORS.violet, label: 'Neocorteccia · fatti' },
-  prefrontal: { pos: new THREE.Vector3(0, 1.0, 2.7), color: COLORS.lime, label: 'Prefrontale · richiamo' },
+  thalamus:   { pos: new THREE.Vector3(0, 0.35, -0.2), color: COLORS.white, anatomy: 'Talamo', role: 'ingest' },
+  llm:        { pos: new THREE.Vector3(1.9, 0.8, 1.1), color: COLORS.amber, role: 'LLM' },
+  hippoL:     { pos: new THREE.Vector3(-1.15, -0.55, -0.5), color: COLORS.cyan, anatomy: 'Ippocampo', role: 'episodi' },
+  hippoR:     { pos: new THREE.Vector3(1.15, -0.55, -0.5), color: COLORS.cyan, anatomy: 'Ippocampo' },
+  acc:        { pos: new THREE.Vector3(0, 1.4, 0.9), color: COLORS.red, anatomy: 'Cingolo anteriore', role: 'terzi' },
+  cortex:     { pos: new THREE.Vector3(-1.8, 1.35, -0.4), color: COLORS.violet, anatomy: 'Neocorteccia', role: 'fatti' },
+  prefrontal: { pos: new THREE.Vector3(0, 1.0, 2.7), color: COLORS.lime, anatomy: 'Corteccia prefrontale', role: 'richiamo' },
   agent:      { pos: new THREE.Vector3(0, 3.0, 6.2), color: COLORS.lime },
 };
 /** Saltatory conduction: on an axon the impulse jumps from one node of Ranvier to the next (spacing in scene units). */
@@ -153,8 +154,15 @@ export class Brain {
         const d = new THREE.Vector3(r() - 0.5, r() - 0.5, r() - 0.5).normalize().multiplyScalar(Math.pow(r(), 1.5) * 0.3);
         pos.push(h.pos.x + d.x, h.pos.y + d.y, h.pos.z + d.z); col.push(c.r * 0.6, c.g * 0.6, c.b * 0.6); size.push(0.06 + r() * 0.06);
       }
-      if (h.label) {
-        const el = document.createElement('div'); el.className = 'label'; el.textContent = h.label; el.style.color = `#${c.getHexString()}`;
+      // The normal view shows "anatomy · role" (one label for the pair of hippocampi); only-brain mode shows the
+      // anatomy alone, on both hippocampi, and hides the labels with no real region (the LLM).
+      if (h.anatomy || h.role) {
+        const el = document.createElement('div'); el.className = 'label'; el.style.color = `#${c.getHexString()}`;
+        if (!h.anatomy) el.classList.add('no-anatomy');
+        if (!h.role) el.classList.add('anatomy-only');
+        const a = document.createElement('span'); a.className = 'anatomy'; a.textContent = h.anatomy ?? '';
+        const r = document.createElement('span'); r.className = 'role'; r.textContent = h.anatomy ? (h.role ? ` · ${h.role}` : '') : h.role ?? '';
+        el.append(a, r);
         document.body.appendChild(el); this.labels.push({ el, pos: h.pos.clone().add(new THREE.Vector3(0, 0.45, 0)), region: name });
       }
     }
