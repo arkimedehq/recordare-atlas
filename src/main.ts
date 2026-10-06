@@ -19,7 +19,7 @@ let refreshTimer: number | undefined;
 
 function show(): void {
   $('s-ep').textContent = String(counters.ep); $('s-fn').textContent = String(counters.fn);
-  $('s-llm').textContent = String(counters.llm); $('s-tok').textContent = counters.tok >= 1000 ? `${(counters.tok / 1000).toFixed(1)}k` : String(counters.tok);
+  $('s-llm').textContent = String(counters.llm); $('s-tok').textContent = counters.tok >= 1e6 ? `${(counters.tok / 1e6).toFixed(2)}M` : counters.tok >= 1000 ? `${(counters.tok / 1000).toFixed(1)}k` : String(counters.tok);
   $('s-rec').textContent = String(counters.rec); $('s-cl').textContent = String(counters.cl);
 }
 function log(cls: string, text: string, at?: string): void {
@@ -55,9 +55,15 @@ $<HTMLFormElement>('connect').addEventListener('submit', (ev) => {
   void connect(ownerSelect.value);
 });
 
-/** "Follow": listen to the whole service and switch to whichever owner is active (evaluation runs create new ones). */
+/**
+ * "Follow": listen to the whole service and show whichever owner is active (evaluation runs create new ones). One
+ * owner at a time: the view stays on the shown owner while they are active and moves to another only after
+ * STAY_MS without events of theirs, so two owners at work never make it flicker.
+ */
 const FOLLOW = '__follow__';
+const STAY_MS = 20_000;
 let current: string | null = null;
+let lastSeen = 0;
 
 async function connect(choice: string): Promise<void> {
   if (!choice) { await loadOwners(); return; }
@@ -73,13 +79,13 @@ async function connect(choice: string): Promise<void> {
 /** Events of the shown owner animate the brain; in follow mode, activity of another owner switches the view to them. */
 async function route(e: TelemetryEvent, follow: boolean): Promise<void> {
   const owner = typeof e.ownerId === 'string' ? e.ownerId : null;
-  if (follow && owner && owner !== current) {
+  if (follow && owner && owner !== current && Date.now() - lastSeen > STAY_MS) {
     current = owner;
-    counters.llm = 0; counters.tok = 0; counters.rec = 0;
     log('idle', 'attività di un\'altra persona: cambio vista');
     await refresh(owner).catch(() => undefined);
   }
   if (current && owner && owner !== current) return;
+  if (owner) lastSeen = Date.now();
   await onEvent(e, current ?? owner ?? '');
 }
 
@@ -89,6 +95,8 @@ async function refresh(ownerId: string): Promise<void> {
   counters.ep = a.episodes.filter((e) => !e.hidden && e.authorRole !== 'other' && e.authorRole !== 'tool').length;
   counters.cl = a.episodes.filter((e) => e.authorRole === 'other' || e.authorRole === 'tool').length;
   counters.fn = a.facts.filter((f) => f.status === 'current').length + a.notes.length;
+  // Lifetime totals from the service; live events add to them until the next snapshot.
+  counters.llm = a.totals.llmCalls; counters.tok = a.totals.inputTokens + a.totals.outputTokens; counters.rec = a.totals.recalls;
   show();
 }
 /** New memories get their real place by meaning at the next snapshot (a few seconds after the writes stop). */
