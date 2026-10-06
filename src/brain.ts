@@ -2,7 +2,7 @@
 // Copyright © 2026 Andrea Genovese
 
 /**
- * The brain scene: a static cortex shell, region hubs joined by visible fibre tracts (relay neurons + axons), and the
+ * The brain scene: a static cortex shell, region hubs joined by polysynaptic fibre tracts (chains of relay neurons and axons), and the
  * owner's memories as a network — episodes as neurons placed by meaning, real relations as synapses. Nothing moves
  * by itself: the only motion is an impulse travelling a real path when the service reports a real event (WORK_PLAN
  * 5b.6), and the short glow it leaves behind.
@@ -28,17 +28,27 @@ const HUB: Record<Region, { pos: THREE.Vector3; color: number; label?: string }>
   prefrontal: { pos: new THREE.Vector3(0, 1.0, 2.7), color: COLORS.lime, label: 'Prefrontale · richiamo' },
   agent:      { pos: new THREE.Vector3(0, 3.0, 6.2), color: COLORS.lime },
 };
-/** Centre of the brain, through which long synapses bend. */
-const CORE = new THREE.Vector3(0, 0.2, -0.3);
+/** Saltatory conduction: on an axon the impulse jumps from one node of Ranvier to the next (spacing in scene units). */
+const RANVIER = 0.12;
+/** Speed along myelinated axons (units/s) and the pause at each synapse while the next neuron integrates and fires. */
+const CONDUCTION = 5.5, SYNAPTIC_DELAY = 0.075;
 /** Fibre tracts actually used by the data flow. */
 const TRACTS: Array<[Region, Region]> = [
   ['entry', 'thalamus'], ['thalamus', 'llm'], ['llm', 'hippoL'], ['llm', 'hippoR'], ['llm', 'cortex'], ['llm', 'acc'],
   ['hippoL', 'cortex'], ['hippoR', 'cortex'], ['hippoL', 'acc'], ['hippoR', 'acc'], ['agent', 'prefrontal'],
   ['prefrontal', 'hippoL'], ['prefrontal', 'hippoR'], ['prefrontal', 'cortex'], ['prefrontal', 'acc'], ['thalamus', 'acc'],
+  ['hippoL', 'hippoR'], // the hippocampal commissure: relations between the two hemispheres cross here
 ];
 
 interface Neuron { id: string; pos: THREE.Vector3; color: THREE.Color; base: number; glow: number; region: Region; dim: boolean }
-interface Pulse { curve: THREE.Curve<THREE.Vector3>; t: number; speed: number; color: THREE.Color; size: number; tail: number; done?: () => void }
+/** A polysynaptic path: the points it passes and, for each, the relay neuron there (-1 = a hub or a memory neuron). */
+interface Path { pts: THREE.Vector3[]; relays: number[] }
+interface Relay { pos: THREE.Vector3; color: THREE.Color; size: number; glow: number }
+/** An impulse hops segment by segment: fast along the axon, then a synaptic delay at the next neuron, which fires. */
+interface Pulse { path: Path; seg: number; u: number; wait: number; speed: number; color: THREE.Color; size: number; tail: number; done?: () => void }
+
+const reversed = (p: Path): Path => ({ pts: [...p.pts].reverse(), relays: [...p.relays].reverse() });
+const joined = (p: Path, q: Path): Path => ({ pts: [...p.pts, ...q.pts.slice(1)], relays: [...p.relays, ...q.relays.slice(1)] });
 
 const rnd = (seed: string) => { let h = 2166136261; for (const c of seed) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return () => ((h = Math.imul(h ^ (h >>> 15), 2246822507) >>> 0) / 4294967296); };
 
@@ -61,7 +71,11 @@ export class Brain {
   private readonly clock = new THREE.Clock();
   private readonly labels: Array<{ el: HTMLElement; pos: THREE.Vector3; region: Region }> = [];
   private readonly heat = new Map<Region, number>();
-  private readonly tractCurves = new Map<string, THREE.CatmullRomCurve3>();
+  private readonly tracts = new Map<string, Path>();
+  /** Inside each hippocampus the input crosses dentate gyrus → CA3 → CA1 before reaching a memory (trisynaptic loop). */
+  private readonly circuits = new Map<Region, Path>();
+  private readonly relays: Relay[] = [];
+  private relayPoints: THREE.Points | null = null;
   private neurons = new Map<string, Neuron>();
   private neuronPoints: THREE.Points | null = null;
   private synapses: THREE.LineSegments | null = null;
@@ -137,34 +151,79 @@ export class Brain {
     return pts;
   }
 
-  /** Fibre tracts: curved axons with relay neurons; impulses travel exactly along these curves. */
+  /**
+   * Fibre tracts as polysynaptic chains, as between real brain regions: relay neurons (with their dendrites) joined by
+   * straight axon segments. An impulse never glides from region to region; it crosses neuron after neuron.
+   */
   private buildTracts(): void {
-    const linePos: number[] = [], lineCol: number[] = [], relayPos: number[] = [], relayCol: number[] = [], relaySize: number[] = [];
+    const lines = { pos: [] as number[], col: [] as number[] }, dust = { pos: [] as number[], col: [] as number[], size: [] as number[] };
+    const axon = (p: THREE.Vector3, q: THREE.Vector3, c: THREE.Color) => { lines.pos.push(p.x, p.y, p.z, q.x, q.y, q.z); lines.col.push(c.r, c.g, c.b, c.r, c.g, c.b); };
     for (const [a, b] of TRACTS) {
       const A = HUB[a].pos, B = HUB[b].pos, r = rnd(a + b);
-      const mid = A.clone().lerp(B, 0.5).add(new THREE.Vector3((r() - 0.5) * 0.8, 0.5 + r() * 0.6, (r() - 0.5) * 0.8));
-      const q1 = A.clone().lerp(mid, 0.55).add(new THREE.Vector3((r() - 0.5) * 0.3, (r() - 0.5) * 0.3, (r() - 0.5) * 0.3));
-      const q2 = mid.clone().lerp(B, 0.45).add(new THREE.Vector3((r() - 0.5) * 0.3, (r() - 0.5) * 0.3, (r() - 0.5) * 0.3));
-      const curve = new THREE.CatmullRomCurve3([A, q1, mid, q2, B]);
-      this.tractCurves.set(`${a}>${b}`, curve);
-      const pts = curve.getPoints(48), ca = new THREE.Color(HUB[a].color), cb = new THREE.Color(HUB[b].color);
-      for (let i = 0; i < pts.length - 1; i++) {
-        const p = pts[i]!, q = pts[i + 1]!, t = i / pts.length;
-        const col = ca.clone().lerp(cb, t).multiplyScalar(0.55);
-        linePos.push(p.x, p.y, p.z, q.x, q.y, q.z); lineCol.push(col.r, col.g, col.b, col.r, col.g, col.b);
+      const dir = B.clone().sub(A).normalize();
+      const side = new THREE.Vector3(0, 1, 0).cross(dir).normalize(), up = dir.clone().cross(side).normalize();
+      const arch = 0.2 + r() * 0.35, n = Math.max(2, Math.round(A.distanceTo(B) / 0.55));
+      const ca = new THREE.Color(HUB[a].color), cb = new THREE.Color(HUB[b].color);
+      const path: Path = { pts: [A.clone()], relays: [-1] };
+      for (let i = 1; i <= n; i++) {
+        const t = i / (n + 1);
+        const p = A.clone().lerp(B, t).addScaledVector(up, arch * Math.sin(Math.PI * t))
+          .addScaledVector(side, (r() - 0.5) * 0.32).addScaledVector(up, (r() - 0.5) * 0.22);
+        path.pts.push(p); path.relays.push(this.addRelay(p, ca.clone().lerp(cb, t), 0.15, r, lines));
       }
-      // The bundle: many small glowing points along the axon (thickness), plus brighter relay neurons.
-      for (let i = 1; i < 60; i++) {
-        const p = curve.getPoint(i / 60); const col = ca.clone().lerp(cb, i / 60).multiplyScalar(0.35);
-        relayPos.push(p.x + (r() - 0.5) * 0.05, p.y + (r() - 0.5) * 0.05, p.z + (r() - 0.5) * 0.05); relayCol.push(col.r, col.g, col.b); relaySize.push(0.05);
+      path.pts.push(B.clone()); path.relays.push(-1);
+      for (let i = 0; i < path.pts.length - 1; i++) {
+        const p = path.pts[i]!, q = path.pts[i + 1]!, c = ca.clone().lerp(cb, i / path.pts.length);
+        axon(p, q, c.clone().multiplyScalar(0.55));
+        // bystander cells along the bundle: the tissue the axon crosses (static, dim)
+        for (let k = 0; k < 4; k++) {
+          const v = p.clone().lerp(q, r()).add(new THREE.Vector3(r() - 0.5, r() - 0.5, r() - 0.5).multiplyScalar(0.22));
+          dust.pos.push(v.x, v.y, v.z); dust.col.push(c.r * 0.25, c.g * 0.25, c.b * 0.25); dust.size.push(0.04 + r() * 0.03);
+        }
       }
-      for (let i = 1; i < 6; i++) { const p = curve.getPoint(i / 6); const col = ca.clone().lerp(cb, i / 6).multiplyScalar(0.8); relayPos.push(p.x, p.y, p.z); relayCol.push(col.r, col.g, col.b); relaySize.push(0.14); }
+      this.tracts.set(`${a}>${b}`, path);
+    }
+    // Hippocampal circuit (entorhinal hub → dentate gyrus → CA3 → CA1), curled like a seahorse on each side.
+    for (const region of ['hippoL', 'hippoR'] as const) {
+      const s = region === 'hippoL' ? -1 : 1, H = HUB[region].pos, r = rnd(`circuit${region}`), c = new THREE.Color(COLORS.cyan);
+      const path: Path = { pts: [H.clone()], relays: [-1] };
+      for (const off of [[0.28, -0.18, 0.3], [0.5, 0.02, 0.05], [0.32, 0.16, -0.32]] as const) {
+        const p = H.clone().add(new THREE.Vector3(s * off[0], off[1], off[2]));
+        axon(path.pts[path.pts.length - 1]!, p, c.clone().multiplyScalar(0.4));
+        path.pts.push(p); path.relays.push(this.addRelay(p, c, 0.13, r, lines));
+      }
+      this.circuits.set(region, path);
     }
     const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.Float32BufferAttribute(linePos, 3));
-    g.setAttribute('color', new THREE.Float32BufferAttribute(lineCol, 3));
+    g.setAttribute('position', new THREE.Float32BufferAttribute(lines.pos, 3));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(lines.col, 3));
     this.scene.add(new THREE.LineSegments(g, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false })));
-    this.scene.add(this.points(relayPos, relayCol, relaySize, 1));
+    this.scene.add(this.points(dust.pos, dust.col, dust.size, 1));
+    this.relayPoints = this.points(this.relays.flatMap((x) => [x.pos.x, x.pos.y, x.pos.z]), new Array(this.relays.length * 3).fill(0), new Array(this.relays.length).fill(0), 1);
+    this.scene.add(this.relayPoints);
+  }
+
+  /** A relay neuron with a few short dendrites; returns its index (its glow flashes when an impulse fires through it). */
+  private addRelay(pos: THREE.Vector3, color: THREE.Color, size: number, r: () => number, lines: { pos: number[]; col: number[] }): number {
+    const dc = color.clone().multiplyScalar(0.3);
+    for (let k = 0, n = 3 + Math.floor(r() * 3); k < n; k++) {
+      const d = new THREE.Vector3(r() - 0.5, r() - 0.5, r() - 0.5).normalize().multiplyScalar(0.06 + r() * 0.1);
+      lines.pos.push(pos.x, pos.y, pos.z, pos.x + d.x, pos.y + d.y, pos.z + d.z); lines.col.push(dc.r, dc.g, dc.b, dc.r * 0.3, dc.g * 0.3, dc.b * 0.3);
+    }
+    this.relays.push({ pos, color: color.clone().multiplyScalar(0.85), size, glow: 0 });
+    return this.relays.length - 1;
+  }
+
+  private tract(a: Region, b: Region): Path | null {
+    const f = this.tracts.get(`${a}>${b}`); if (f) return f;
+    const back = this.tracts.get(`${b}>${a}`); return back ? reversed(back) : null;
+  }
+
+  /** Two memory neurons: directly when in the same region, otherwise through the relays of the tract between regions. */
+  private edgePath(a: Neuron, b: Neuron): Path {
+    const t = a.region === b.region ? null : this.tract(a.region, b.region);
+    if (!t) return { pts: [a.pos, b.pos], relays: [-1, -1] };
+    return { pts: [a.pos, ...t.pts.slice(1, -1), b.pos], relays: [-1, ...t.relays.slice(1, -1), -1] };
   }
 
   private points(pos: number[], col: number[], size: number[], scale: number): THREE.Points {
@@ -236,13 +295,9 @@ export class Brain {
       const a = this.neurons.get(e.a), b = this.neurons.get(e.b);
       if (!a || !b) continue;
       const [hex, k] = tone[e.kind]; const c = new THREE.Color(hex).multiplyScalar(k);
-      // Synapses bend through the tissue (pulled toward the brain's core, like fibres through the corpus callosum)
-      // instead of cutting straight lines across the space.
-      const mid = a.pos.clone().lerp(b.pos, 0.5);
-      const ctrl = mid.clone().lerp(CORE, Math.min(0.6, a.pos.distanceTo(b.pos) * 0.25));
-      const curve = new THREE.QuadraticBezierCurve3(a.pos, ctrl, b.pos);
-      const segs = a.pos.distanceTo(b.pos) > 0.8 ? 8 : 2, pts = curve.getPoints(segs);
-      for (let i = 0; i < segs; i++) {
+      // Straight synapses; across regions they converge on the relays of the tract that joins them.
+      const pts = this.edgePath(a, b).pts;
+      for (let i = 0; i < pts.length - 1; i++) {
         const p = pts[i]!, q = pts[i + 1]!;
         pos.push(p.x, p.y, p.z, q.x, q.y, q.z); col.push(c.r, c.g, c.b, c.r, c.g, c.b);
       }
@@ -255,27 +310,34 @@ export class Brain {
   }
 
   // ---------- event-driven motion ----------
-  /** Sends an impulse along the tract a → b (optionally continuing to a neuron); resolves on arrival. */
+  /** Sends an impulse along the tract a → b, relay by relay (optionally on to one neuron); resolves on arrival. */
   fire(a: Region, b: Region, color: number, opts: { to?: string; size?: number } = {}): Promise<void> {
-    const forward = this.tractCurves.get(`${a}>${b}`), backward = this.tractCurves.get(`${b}>${a}`);
-    const tract = forward ?? (backward ? new ReversedCurve(backward) : null);
-    if (!tract) return Promise.resolve();
+    let path = this.tract(a, b);
+    if (!path) return Promise.resolve();
     const target = opts.to ? this.neurons.get(opts.to) : undefined;
-    const path: THREE.Curve<THREE.Vector3> = target ? new ChainedCurve(tract, target.pos) : tract;
+    if (target) {
+      const circuit = this.circuits.get(b);
+      if (circuit) path = joined(path, circuit);
+      path = { pts: [...path.pts, target.pos], relays: [...path.relays, -1] };
+    }
     return new Promise((resolve) => {
-      this.pulses.push({ curve: path, t: 0, speed: 0.9, color: new THREE.Color(color), size: opts.size ?? 0.26, tail: 10, done: () => {
+      this.launch(path, CONDUCTION, color, opts.size ?? 0.26, 7, () => {
         this.heat.set(b, Math.min(1.5, (this.heat.get(b) ?? 0) + 0.8));
         if (target) target.glow = 1.6;
         resolve();
-      } });
+      });
     });
   }
 
-  /** A short glow along a synapse between two neurons (a real link was written). */
+  /** An impulse along a synapse between two neurons (a real link was written). */
   link(a: string, b: string, color: number): void {
     const A = this.neurons.get(a), B = this.neurons.get(b);
     if (!A || !B) return;
-    this.pulses.push({ curve: new THREE.LineCurve3(A.pos.clone(), B.pos.clone()), t: 0, speed: 1.6, color: new THREE.Color(color), size: 0.2, tail: 6, done: () => { B.glow = 1.4; } });
+    this.launch(this.edgePath(A, B), CONDUCTION * 0.8, color, 0.2, 5, () => { B.glow = 1.4; });
+  }
+
+  private launch(path: Path, speed: number, color: number, size: number, tail: number, done: () => void): void {
+    this.pulses.push({ path, seg: 0, u: 0, wait: 0, speed, color: new THREE.Color(color), size, tail, done });
   }
 
   /** A memory written now that is not in the snapshot yet: a provisional neuron in its region until the next refresh. */
@@ -332,13 +394,35 @@ export class Brain {
     const p = this.pulseGeo.getAttribute('position') as THREE.BufferAttribute, c = this.pulseGeo.getAttribute('color') as THREE.BufferAttribute, s = this.pulseGeo.getAttribute('size') as THREE.BufferAttribute;
     let k = 0;
     for (let i = this.pulses.length - 1; i >= 0; i--) {
-      const pl = this.pulses[i]!; pl.t += dt * pl.speed;
-      if (pl.t >= 1) { pl.done?.(); this.pulses.splice(i, 1); continue; }
-      for (let j = 0; j < pl.tail && k < this.MAXP; j++) {
-        const t = pl.t - j * 0.012; if (t < 0) break;
-        const v = pl.curve.getPoint(t); const fade = 1 - j / pl.tail;
-        p.setXYZ(k, v.x, v.y, v.z); c.setXYZ(k, pl.color.r * 1.6 * fade, pl.color.g * 1.6 * fade, pl.color.b * 1.6 * fade); s.setX(k, pl.size * (0.4 + 0.6 * fade)); k++;
+      const pl = this.pulses[i]!;
+      if (pl.wait > 0) { pl.wait -= dt; continue; } // synaptic delay: the signal is chemical for a moment, nothing travels
+      const P = pl.path.pts[pl.seg]!, Q = pl.path.pts[pl.seg + 1]!, len = Math.max(0.01, P.distanceTo(Q));
+      pl.u += dt * pl.speed / len;
+      if (pl.u >= 1) {
+        pl.seg++; pl.u = 0;
+        if (pl.seg >= pl.path.pts.length - 1) { pl.done?.(); this.pulses.splice(i, 1); continue; }
+        const relay = this.relays[pl.path.relays[pl.seg]!];
+        if (relay) relay.glow = 1.6; // the next neuron fires
+        pl.wait = SYNAPTIC_DELAY;
+        continue;
       }
+      // saltatory conduction: the head jumps node to node, leaving a beaded trail inside this axon segment only
+      const nodes = Math.max(1, Math.round(len / RANVIER)), head = Math.floor(pl.u * nodes);
+      for (let j = 0; j < pl.tail && k < this.MAXP; j++) {
+        const n = head - j; if (n < 0) break;
+        const fade = 1 - j / pl.tail; this.proj.copy(P).lerp(Q, n / nodes);
+        p.setXYZ(k, this.proj.x, this.proj.y, this.proj.z); c.setXYZ(k, pl.color.r * 1.6 * fade, pl.color.g * 1.6 * fade, pl.color.b * 1.6 * fade); s.setX(k, pl.size * (0.4 + 0.6 * fade)); k++;
+      }
+    }
+    // relay neurons: dim at rest, a flash when an impulse fires through them
+    if (this.relayPoints) {
+      const rc = this.relayPoints.geometry.getAttribute('color') as THREE.BufferAttribute, rs = this.relayPoints.geometry.getAttribute('size') as THREE.BufferAttribute;
+      this.relays.forEach((r, i) => {
+        r.glow = Math.max(0, r.glow - dt * 2.2);
+        const f = 0.8 + r.glow * 2;
+        rc.setXYZ(i, r.color.r * f, r.color.g * f, r.color.b * f); rs.setX(i, r.size + r.glow * 0.12);
+      });
+      rc.needsUpdate = true; rs.needsUpdate = true;
     }
     this.pulseGeo.setDrawRange(0, k); p.needsUpdate = true; c.needsUpdate = true; s.needsUpdate = true;
     this.controls.update();
@@ -357,22 +441,4 @@ function ball(xyz: [number, number, number]): THREE.Vector3 {
   const v = new THREE.Vector3(...xyz);
   const inf = Math.max(Math.abs(v.x), Math.abs(v.y), Math.abs(v.z)), l2 = v.length();
   return l2 > 0 ? v.multiplyScalar(inf / l2) : v;
-}
-
-/** A tract travelled backwards. */
-class ReversedCurve extends THREE.Curve<THREE.Vector3> {
-  constructor(private readonly inner: THREE.Curve<THREE.Vector3>) { super(); }
-  override getPoint(t: number, target = new THREE.Vector3()): THREE.Vector3 { return this.inner.getPoint(1 - t, target); }
-}
-
-/** A tract followed by the last hop from the region hub to one neuron. */
-class ChainedCurve extends THREE.Curve<THREE.Vector3> {
-  private readonly hop: THREE.LineCurve3;
-  constructor(private readonly tract: THREE.Curve<THREE.Vector3>, to: THREE.Vector3) {
-    super();
-    this.hop = new THREE.LineCurve3(tract.getPoint(1), to.clone());
-  }
-  override getPoint(t: number, target = new THREE.Vector3()): THREE.Vector3 {
-    return t < 0.8 ? this.tract.getPoint(t / 0.8, target) : this.hop.getPoint((t - 0.8) / 0.2, target);
-  }
 }
