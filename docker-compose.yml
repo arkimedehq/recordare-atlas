@@ -1,0 +1,24 @@
+# Recordare Atlas next to a Recordare installation (and, optionally, an agent platform sending OpenTelemetry traces).
+# Configure with an .env next to this file: RECORDARE_URL, RECORDARE_ADMIN_KEY, ATLAS_INGEST_TOKEN, and the Docker
+# network Recordare is on (ATLAS_NETWORK). Start: docker compose -p recordare-atlas up -d --build
+name: recordare-atlas
+
+services:
+  atlas:
+    build: .
+    env_file: .env
+    environment:
+      ATLAS_HOST: 0.0.0.0
+      ATLAS_PORT: "5175"
+    restart: unless-stopped
+    # The page shows metadata only (no memory content); bind it to the LAN only on a trusted home network.
+    ports: ["${ATLAS_BIND:-127.0.0.1}:${ATLAS_PUBLIC_PORT:-5175}:5175"]
+    networks:
+      recordare:
+        aliases: [atlas]
+    mem_limit: 256m
+
+networks:
+  recordare:
+    external: true
+    name: ${ATLAS_NETWORK:?set ATLAS_NETWORK (the Docker network Recordare is on)}
