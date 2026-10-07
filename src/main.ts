@@ -148,10 +148,13 @@ function endWork(id: number): void {
 interface ClientSpan { op: string; owner: string | null; agent: string | null; model: string | null; tool: string | null; service: string | null;
   inputTokens?: number; outputTokens?: number; ms: number; status: string }
 function onClientSpan(s: ClientSpan): void {
-  if (s.owner && current && s.owner !== current) return; // another person's agent
   const who = s.agent ?? s.service ?? 'agente';
   const took = s.ms >= 1000 ? `${(s.ms / 1000).toFixed(1)} s` : `${s.ms} ms`;
   const err = s.status === 'error' ? ' · errore' : '';
+  // Only a span tied to the person on screen moves their brain. A span with no person (a user without Recordare
+  // memory) is logged, never drawn on someone else's brain; another person's span is not shown at all.
+  if (!s.owner) { log('idle', `client · utente senza memoria Recordare · ${who} · ${s.op} · ${took}${err}`); return; }
+  if (s.owner !== current) return;
   if (['invoke_agent', 'plan', 'invoke_workflow', 'create_agent'].includes(s.op)) {
     log('rec', `client · ${who} · ${s.op} · ${took}${err}`);
     void brain.fire('agent', 'prefrontal', COLORS.lime, { size: 0.22 });

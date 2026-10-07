@@ -55,8 +55,9 @@ OTEL_EXPORTER_OTLP_TRACES_HEADERS="Authorization=Bearer <ATLAS_INGEST_TOKEN>"
 agent, model, provider, tool, tokens, duration, status, person); prompts, replies, system instructions, tool arguments
 and results are never read (`server/otlp.mjs`). Nothing is stored. Spans reach the atlas when they end (exporters
 batch them), so each is shown once, on arrival, with its real duration in the log — never stretched into a fake live
-wait. To tie a span to a Recordare person, set the attribute `recordare.owner_id` (spans of another person are not
-drawn on the one on screen; spans with no person are).
+wait. A span moves the brain only when it carries the Recordare person on screen (attribute `recordare.owner_id`); spans
+of other people are not shown, and spans with no person (a user of the platform without Recordare memory) only appear
+in the log — never drawn on someone else's brain.
 
 ## What you see
 
