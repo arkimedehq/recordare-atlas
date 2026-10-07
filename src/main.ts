@@ -145,7 +145,7 @@ function endWork(id: number): void {
 // ---------- client agents (OpenTelemetry GenAI spans relayed by the atlas server, WORK_PLAN 5b.8) ----------
 /** Spans reach the atlas when they end (the client's exporter batches them): each is shown once, on arrival, as what
  * it was — never stretched into a fake live wait. */
-interface ClientSpan { op: string; owner: string | null; agent: string | null; model: string | null; tool: string | null; service: string | null;
+interface ClientSpan { op: string; owner: string | null; user: string | null; agent: string | null; model: string | null; tool: string | null; service: string | null;
   inputTokens?: number; outputTokens?: number; ms: number; status: string }
 function onClientSpan(s: ClientSpan): void {
   const who = s.agent ?? s.service ?? 'agente';
@@ -153,7 +153,11 @@ function onClientSpan(s: ClientSpan): void {
   const err = s.status === 'error' ? ' · errore' : '';
   // Only a span tied to the person on screen moves their brain. A span with no person (a user without Recordare
   // memory) is logged, never drawn on someone else's brain; another person's span is not shown at all.
-  if (!s.owner) { log('idle', `client · utente senza memoria Recordare · ${who} · ${s.op} · ${took}${err}`); return; }
+  if (!s.owner) {
+    // With a user but no person: the platform did not (yet) know the user's Recordare person when the span started.
+    log('idle', `client · ${s.user ? 'utente senza persona Recordare nota' : 'nessun utente'} · ${who} · ${s.op} · ${took}${err}`);
+    return;
+  }
   if (s.owner !== current) return;
   if (['invoke_agent', 'plan', 'invoke_workflow', 'create_agent'].includes(s.op)) {
     log('rec', `client · ${who} · ${s.op} · ${took}${err}`);
