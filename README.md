@@ -67,7 +67,8 @@ recall (prefrontal cortex), a consolidation (cortex, with the sleep palette). Wi
 
 **Counters:** episodes, facts · notes and claims come from the snapshot; LLM calls, tokens and recalls are the
 person's lifetime totals (from the service), then grow with live events. **Follow mode** shows one person at a time:
-it stays on the shown person while they are active and moves to another only after 20 s without their events.
+each person stays on screen at least 20 s; after that, activity of another person takes the view even if the shown one
+is still busy, so two people at work alternate (a long evaluation never hides someone chatting).
 
 **Rotation:** a slow orbit of the point of view, on by default (the "Rotazione" button or the `R` key; remembered in
 this browser; off with reduced motion). **Awake / asleep:** the palette turns to a deeper violet night only while the

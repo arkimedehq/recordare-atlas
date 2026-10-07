@@ -67,13 +67,14 @@ $<HTMLFormElement>('connect').addEventListener('submit', (ev) => {
 
 /**
  * "Follow": listen to the whole service and show whichever owner is active (evaluation runs create new ones). One
- * owner at a time: the view stays on the shown owner while they are active and moves to another only after
- * STAY_MS without events of theirs, so two owners at work never make it flicker.
+ * owner at a time, each on screen at least STAY_MS: after that, activity of another owner takes the view even if the
+ * shown one is still busy — two owners at work alternate instead of one hiding the other (a long evaluation run must
+ * not hide a person chatting).
  */
 const FOLLOW = '__follow__';
 const STAY_MS = 20_000;
 let current: string | null = null;
-let lastSeen = 0;
+let shownSince = 0;
 let following = false;
 let latestOwner: string | null = null;
 let shownName = '';
@@ -85,6 +86,7 @@ async function connect(choice: string): Promise<void> {
   const follow = choice === FOLLOW;
   following = follow;
   current = follow ? latestOwner : choice; // follow starts from the person active most recently
+  shownSince = Date.now();
   if (current) await refresh(current).catch(() => undefined);
   stopStream = stream(keyInput.value, follow ? null : choice, (e) => void route(e, follow), (s) => {
     streamState = s;
@@ -96,14 +98,14 @@ async function connect(choice: string): Promise<void> {
 /** Events of the shown owner animate the brain; in follow mode, activity of another owner switches the view to them. */
 async function route(e: TelemetryEvent, follow: boolean): Promise<void> {
   const owner = typeof e.ownerId === 'string' ? e.ownerId : null;
-  if (follow && owner && owner !== current && Date.now() - lastSeen > STAY_MS) {
+  if (follow && owner && owner !== current && Date.now() - shownSince > STAY_MS) {
     current = owner;
+    shownSince = Date.now();
     working.clear(); brain.idle(); // the previous person's jobs end out of sight
     log('idle', 'attività di un\'altra persona: cambio vista');
     await refresh(owner).catch(() => undefined);
   }
   if (current && owner && owner !== current) return;
-  if (owner) lastSeen = Date.now();
   await onEvent(e, current ?? owner ?? '');
 }
 
