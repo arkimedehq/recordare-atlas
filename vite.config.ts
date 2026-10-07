@@ -25,6 +25,8 @@ export default defineConfig({
   }],
   server: {
     port: 5175,
+    // Extra host names the dev server answers to (e.g. `host.docker.internal`, so agents in Docker can send traces).
+    allowedHosts: (process.env.ATLAS_ALLOWED_HOSTS ?? '').split(',').map((h) => h.trim()).filter(Boolean),
     proxy: {
       '/api': {
         target: process.env.RECORDARE_URL ?? 'http://localhost:8080',

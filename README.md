@@ -42,6 +42,9 @@ JSON, gzip allowed — the SDK defaults work; gRPC is not served) with the GenAI
 `retrieval` → **motor cortex**). Receiving needs `ATLAS_INGEST_TOKEN` (the exporter sends `Authorization: Bearer
 <token>`); without it the receiver is off.
 
+Agents running in Docker on the same machine reach the dev server as `host.docker.internal`: start it with
+`ATLAS_ALLOWED_HOSTS=host.docker.internal` (Vite refuses unknown host names otherwise).
+
 ```sh
 OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://127.0.0.1:5175/v1/traces
 OTEL_EXPORTER_OTLP_TRACES_PROTOCOL=http/protobuf   # or http/json
