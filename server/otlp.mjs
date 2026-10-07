@@ -19,7 +19,9 @@ const listeners = new Set();
 /** OTLP JSON attribute list → plain object, keeping only the allowed keys. */
 const KEEP = new Set(['gen_ai.operation.name', 'gen_ai.provider.name', 'gen_ai.request.model', 'gen_ai.response.model', 'gen_ai.agent.name',
   'gen_ai.agent.id', 'gen_ai.tool.name', 'gen_ai.tool.type', 'gen_ai.usage.input_tokens', 'gen_ai.usage.output_tokens',
-  'gen_ai.usage.cache_read.input_tokens', 'recordare.owner_id', 'user.id', 'enduser.id', 'service.name']);
+  'gen_ai.usage.cache_read.input_tokens', 'recordare.owner_id', 'user.id', 'enduser.id', 'service.name',
+  // Voice (no GenAI convention for speech yet): what kind, how long — never the transcript or the text spoken.
+  'voice.operation', 'voice.audio_seconds', 'voice.characters']);
 function attrs(list) {
   const out = {};
   for (const a of list ?? []) {
@@ -34,7 +36,7 @@ const num = (x) => (x === undefined ? undefined : Number(x));
 /** One span → one client event (or null when it is not a GenAI span). */
 export function toEvent(span, resource) {
   const a = { ...attrs(resource), ...attrs(span.attributes) };
-  const op = a['gen_ai.operation.name'];
+  const op = a['gen_ai.operation.name'] ?? a['voice.operation'];
   if (typeof op !== 'string') return null;
   const start = Number(BigInt(span.startTimeUnixNano ?? 0) / 1_000_000n), end = Number(BigInt(span.endTimeUnixNano ?? 0) / 1_000_000n);
   return {
@@ -43,6 +45,7 @@ export function toEvent(span, resource) {
     agent: a['gen_ai.agent.name'] ?? a['gen_ai.agent.id'] ?? null, model: a['gen_ai.response.model'] ?? a['gen_ai.request.model'] ?? null,
     provider: a['gen_ai.provider.name'] ?? null, tool: a['gen_ai.tool.name'] ?? null, toolType: a['gen_ai.tool.type'] ?? null,
     inputTokens: num(a['gen_ai.usage.input_tokens']), outputTokens: num(a['gen_ai.usage.output_tokens']),
+    audioSeconds: num(a['voice.audio_seconds']), characters: num(a['voice.characters']),
     trace: typeof span.traceId === 'string' ? span.traceId.slice(0, 8) : null, startedAt: start, ms: Math.max(0, end - start),
     status: span.status?.code === 2 || span.status?.code === 'STATUS_CODE_ERROR' ? 'error' : 'ok',
   };

@@ -148,7 +148,7 @@ function endWork(id: number): void {
 /** Spans reach the atlas when they end (the client's exporter batches them): each is shown once, on arrival, as what
  * it was — never stretched into a fake live wait. */
 interface ClientSpan { op: string; owner: string | null; user: string | null; agent: string | null; model: string | null; tool: string | null; service: string | null;
-  inputTokens?: number; outputTokens?: number; ms: number; status: string }
+  inputTokens?: number; outputTokens?: number; audioSeconds?: number; characters?: number; ms: number; status: string }
 function onClientSpan(s: ClientSpan): void {
   const who = s.agent ?? s.service ?? 'agente';
   const took = s.ms >= 1000 ? `${(s.ms / 1000).toFixed(1)} s` : `${s.ms} ms`;
@@ -161,7 +161,13 @@ function onClientSpan(s: ClientSpan): void {
     return;
   }
   if (s.owner !== current) return;
-  if (['invoke_agent', 'plan', 'invoke_workflow', 'create_agent'].includes(s.op)) {
+  if (s.op === 'transcription') {
+    log('in', `client · ascolto · ${s.model ?? ''}${s.audioSeconds ? ` · ${s.audioSeconds.toFixed(1)} s di audio` : ''} · ${took}${err}`);
+    void brain.fire('auditory', 'llm', COLORS.cyan, { size: 0.22 });
+  } else if (s.op === 'speech') {
+    log('in', `client · voce · ${s.model ?? ''}${s.characters ? ` · ${s.characters} caratteri` : ''} · ${took}${err}`);
+    void brain.fire('broca', 'motor', COLORS.orange, { size: 0.22 });
+  } else if (['invoke_agent', 'plan', 'invoke_workflow', 'create_agent'].includes(s.op)) {
     log('rec', `client · ${who} · ${s.op} · ${took}${err}`);
     void brain.fire('agent', 'prefrontal', COLORS.lime, { size: 0.22 });
   } else if (['chat', 'text_completion', 'generate_content'].includes(s.op)) {
