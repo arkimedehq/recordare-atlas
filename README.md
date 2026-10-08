@@ -7,7 +7,7 @@ A live brain view of a [Recordare](https://github.com/arkimedehq/recordare) inst
 components, neurons are a person's episodes (placed by meaning), synapses are real relations, and every impulse is a
 real event from the service's telemetry stream travelling the real path of that data. No simulated or decorative
 motion: when the service is quiet, so is the brain. Metadata only — no message or memory content ever reaches the
-atlas.
+atlas. Italian copy: [`README_it.md`](README_it.md).
 
 **Optional.** Recordare works the same without it (with no listener, its telemetry costs nothing). The atlas reads
 three read-only admin endpoints of Recordare and follows the event contract `atlas-events v1`
@@ -64,6 +64,11 @@ in the log — never drawn on someone else's brain.
 
 ## What you see
 
+**Language:** the page is in English or Italian, English by default (never guessed from the browser). Switch with the
+EN / IT toggle in the header or `?lang=it` / `?lang=en` in the URL; the choice is remembered in this browser. Switching
+rewrites every label at once — region labels in the brain and log lines already shown included — without reloading
+the scene. The animation at the top was recorded with the Italian page.
+
 **Work in progress:** a region breathes while real work runs there — an LLM call in flight (Wernicke's area, the
 LLM), embeddings of incoming messages (thalamus), the context read and the embeddings of new memories (hippocampi), a
 recall (prefrontal cortex), a consolidation (cortex, with the sleep palette). With no work running, the brain is still.
@@ -73,12 +78,12 @@ person's lifetime totals (from the service), then grow with live events. **Follo
 each person stays on screen at least 20 s; after that, activity of another person takes the view even if the shown one
 is still busy, so two people at work alternate (a long evaluation never hides someone chatting).
 
-**Rotation:** a slow orbit of the point of view, on by default (the "Rotazione" button or the `R` key; remembered in
+**Rotation:** a slow orbit of the point of view, on by default (the "Rotation" button or the `R` key; remembered in
 this browser; off with reduced motion). **Awake / asleep:** the palette turns to a deeper violet night only while the
 service really consolidates (digest calls and digests written), and wakes at `consolidation.finished` or after a quiet
 minute — never a simulated replay.
 
-**Only-brain mode (screensaver):** the "Solo cervello" button, the `B` key or `http://127.0.0.1:5175/#onlybrain` hide
+**Only-brain mode (screensaver):** the "Only brain" button, the `B` key or `http://127.0.0.1:5175/#onlybrain` hide
 everything but the brain (full screen, slow orbit of the camera — the view moves, the data never does on its own). The
 brain fills the screen, centred, at every angle of the orbit: a longer lens, and a framing (height and distance) computed
 from the shell for each side the camera passes; `Esc` or `B` to exit and glide back to the previous view.

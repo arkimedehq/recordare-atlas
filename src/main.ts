@@ -7,15 +7,18 @@
  * service is quiet, so is the brain.
  */
 import './style.css';
-import { atlas, owners, stream, type TelemetryEvent } from './api';
+import { atlas, owners, stream, type OwnerItem, type TelemetryEvent } from './api';
 import { Brain, COLORS, type Region } from './brain';
+import { LANGS, applyStatic, getLang, onLangChange, setLang, t, type Key, type Lang } from './i18n';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
+applyStatic();
 // How much drawing costs, from the URL: `?mode=light` for low-power GPUs, `bloom=off` to drop the glow pass entirely.
 const params = new URLSearchParams(location.search);
 const light = params.get('mode') === 'light', bloom = params.get('bloom') !== 'off';
 const brain = new Brain($('stage'), { light, bloom });
-if (light || !bloom) { const badge = $('render'); badge.hidden = false; badge.textContent = light ? (bloom ? 'leggera' : 'leggera · senza bloom') : 'senza bloom'; }
+const renderKey: Key = light ? (bloom ? 'render.light' : 'render.lightNoBloom') : 'render.noBloom';
+if (light || !bloom) { const badge = $('render'); badge.hidden = false; badge.textContent = t(renderKey); }
 const keyInput = $<HTMLInputElement>('key'), ownerSelect = $<HTMLSelectElement>('owner'), status = $('status');
 const counters = { ep: 0, fn: 0, llm: 0, tok: 0, rec: 0, cl: 0 };
 let stopStream: (() => void) | null = null;
@@ -26,21 +29,28 @@ function show(): void {
   $('s-llm').textContent = String(counters.llm); $('s-tok').textContent = counters.tok >= 1e6 ? `${(counters.tok / 1e6).toFixed(2)}M` : counters.tok >= 1000 ? `${(counters.tok / 1000).toFixed(1)}k` : String(counters.tok);
   $('s-rec').textContent = String(counters.rec); $('s-cl').textContent = String(counters.cl);
 }
-function log(cls: string, text: string, at?: string): void {
+/** Each log line keeps how to write itself, so a change of language rewrites the lines already shown. */
+const logText = new WeakMap<HTMLElement, () => string>();
+function log(cls: string, text: () => string, at?: string): void {
   const li = document.createElement('li');
   const time = document.createElement('time'); time.textContent = (at ? new Date(at) : new Date()).toTimeString().slice(0, 8);
-  const span = document.createElement('span'); span.className = cls; span.textContent = text;
+  const span = document.createElement('span'); span.className = cls; span.textContent = text();
+  logText.set(span, text);
   li.append(time, span); $('events').prepend(li);
   while ($('events').children.length > 40) $('events').lastChild?.remove();
 }
-function setStatus(state: 'on' | 'off' | 'err', text: string): void { status.className = `status ${state}`; status.textContent = text; }
+let statusText = (): string => t('status.notConnected');
+function setStatus(state: 'on' | 'off' | 'err', text: () => string): void {
+  status.className = `status ${state}`; statusText = text; status.textContent = text();
+  status.dataset.follow = String(following); // language-independent state for scripts (scripts/demo)
+}
 let streamState: 'on' | 'off' | 'err' = 'off';
 /** Connection state plus who is on screen (in follow mode the person changes by itself, so the name matters). */
 function showStatus(): void {
   const who = shownName ? ` · ${shownName}` : '';
-  setStatus(streamState, streamState === 'on'
-    ? (following ? `segue l'attività${who || ' · in attesa'}` : `in ascolto${who}`)
-    : streamState === 'err' ? 'stream interrotto · riprovo' : 'stream chiuso · riprovo');
+  setStatus(streamState, () => streamState === 'on'
+    ? (following ? t('status.following', { who: who || t('status.waiting') }) : t('status.listening', { who }))
+    : streamState === 'err' ? t('status.interrupted') : t('status.closed'));
   $('who').textContent = shownName;
 }
 
@@ -48,19 +58,30 @@ try { keyInput.value = sessionStorage.getItem('atlas-key') ?? ''; } catch { /* s
 keyInput.addEventListener('change', () => void loadOwners());
 void loadOwners(); // with a local proxy holding the key, no key is needed here
 
+let ownerList: OwnerItem[] = [];
+/** Option texts of the person menu in the current language (values never change). */
+function ownerOptions(): void {
+  for (const opt of ownerSelect.options) {
+    const o = ownerList.find((x) => x.id === opt.value);
+    if (opt.value === FOLLOW) opt.textContent = t('ctl.follow');
+    else if (o) opt.textContent = t('ctl.ownerItem', { name: o.name, n: o.episodes });
+  }
+}
+
 async function loadOwners(): Promise<void> {
   try {
     const list = await owners(keyInput.value);
     latestOwner = list[0]?.id ?? null; // the list is ordered by last activity
-    const follow = Object.assign(document.createElement('option'), { value: FOLLOW, textContent: 'Segui l\'attività (live)' });
-    ownerSelect.replaceChildren(follow, ...list.map((o) => Object.assign(document.createElement('option'), { value: o.id, textContent: `${o.name} · ${o.episodes} episodi` })));
+    ownerList = list;
+    ownerSelect.replaceChildren(Object.assign(document.createElement('option'), { value: FOLLOW }), ...list.map((o) => Object.assign(document.createElement('option'), { value: o.id })));
+    ownerOptions();
     ownerSelect.disabled = false;
     try { if (keyInput.value) sessionStorage.setItem('atlas-key', keyInput.value); } catch { /* storage unavailable */ }
-    setStatus('off', `${list.length} persone · scegli e collega`);
+    setStatus('off', () => t('status.people', { n: list.length }));
     // Opened without a running stream: follow the service at once (a reload never leaves the brain disconnected).
     if (!stopStream) { ownerSelect.value = FOLLOW; void connect(FOLLOW); }
   } catch (err) {
-    setStatus('err', `chiave non valida o servizio non raggiungibile (${(err as Error).message})`);
+    setStatus('err', () => t('status.badKey', { error: (err as Error).message }));
   }
 }
 
@@ -96,7 +117,7 @@ async function connect(choice: string): Promise<void> {
     streamState = s;
     showStatus();
   });
-  log('idle', follow ? 'in ascolto di tutto il servizio: mostra la persona attiva' : 'collegato: ogni impulso da qui in poi è un evento reale del servizio');
+  log('idle', () => t(follow ? 'log.followAll' : 'log.connected'));
 }
 
 /** Events of the shown owner animate the brain; in follow mode, activity of another owner switches the view to them. */
@@ -106,7 +127,7 @@ async function route(e: TelemetryEvent, follow: boolean): Promise<void> {
     current = owner;
     shownSince = Date.now();
     working.clear(); brain.idle(); // the previous person's jobs end out of sight
-    log('idle', 'attività di un\'altra persona: cambio vista');
+    log('idle', () => t('log.switch'));
     await refresh(owner).catch(() => undefined);
   }
   if (current && owner && owner !== current) return;
@@ -154,33 +175,33 @@ function endWork(id: number): void {
 interface ClientSpan { op: string; owner: string | null; user: string | null; agent: string | null; model: string | null; tool: string | null; service: string | null;
   inputTokens?: number; outputTokens?: number; audioSeconds?: number; characters?: number; ms: number; status: string }
 function onClientSpan(s: ClientSpan): void {
-  const who = s.agent ?? s.service ?? 'agente';
+  const who = (): string => s.agent ?? s.service ?? t('log.agent');
   const took = s.ms >= 1000 ? `${(s.ms / 1000).toFixed(1)} s` : `${s.ms} ms`;
-  const err = s.status === 'error' ? ' · errore' : '';
+  const err = (): string => (s.status === 'error' ? t('log.error') : '');
   // Only a span tied to the person on screen moves their brain. A span with no person (a user without Recordare
   // memory) is logged, never drawn on someone else's brain; another person's span is not shown at all.
   if (!s.owner) {
     // With a user but no person: the platform did not (yet) know the user's Recordare person when the span started.
-    log('idle', `client · ${s.user ? 'utente senza persona Recordare nota' : 'nessun utente'} · ${who} · ${s.op} · ${took}${err}`);
+    log('idle', () => `client · ${t(s.user ? 'log.userNoPerson' : 'log.noUser')} · ${who()} · ${s.op} · ${took}${err()}`);
     return;
   }
   if (s.owner !== current) return;
   if (s.op === 'transcription') {
-    log('in', `client · ascolto · ${s.model ?? ''}${s.audioSeconds ? ` · ${s.audioSeconds.toFixed(1)} s di audio` : ''} · ${took}${err}`);
+    log('in', () => `client · ${t('log.hearing')} · ${s.model ?? ''}${s.audioSeconds ? t('log.audio', { s: s.audioSeconds.toFixed(1) }) : ''} · ${took}${err()}`);
     void brain.fire('auditory', 'llm', COLORS.cyan, { size: 0.22 });
   } else if (s.op === 'speech') {
-    log('in', `client · voce · ${s.model ?? ''}${s.characters ? ` · ${s.characters} caratteri` : ''} · ${took}${err}`);
+    log('in', () => `client · ${t('log.voice')} · ${s.model ?? ''}${s.characters ? t('log.chars', { n: s.characters }) : ''} · ${took}${err()}`);
     void brain.fire('broca', 'motor', COLORS.orange, { size: 0.22 });
   } else if (['invoke_agent', 'plan', 'invoke_workflow', 'create_agent'].includes(s.op)) {
-    log('rec', `client · ${who} · ${s.op} · ${took}${err}`);
+    log('rec', () => `client · ${who()} · ${s.op} · ${took}${err()}`);
     void brain.fire('agent', 'prefrontal', COLORS.lime, { size: 0.22 });
   } else if (['chat', 'text_completion', 'generate_content'].includes(s.op)) {
-    log('llm', `client · ${who} · LLM ${s.model ?? ''} · ${s.inputTokens ?? '?'}→${s.outputTokens ?? '?'} tok · ${took}${err}`);
+    log('llm', () => `client · ${who()} · LLM ${s.model ?? ''} · ${s.inputTokens ?? '?'}→${s.outputTokens ?? '?'} tok · ${took}${err()}`);
     void brain.fire('prefrontal', 'broca', COLORS.orange, { size: 0.24 });
   } else if (['execute_tool', 'embeddings', 'retrieval'].includes(s.op)) {
-    log('in', `client · ${who} · ${s.op === 'execute_tool' ? `tool ${s.tool ?? ''}` : s.op} · ${took}${err}`);
+    log('in', () => `client · ${who()} · ${s.op === 'execute_tool' ? `tool ${s.tool ?? ''}` : s.op} · ${took}${err()}`);
     void brain.fire('prefrontal', 'motor', COLORS.gold, { size: 0.2 });
-  } else log('idle', `client · ${who} · ${s.op} · ${took}${err}`); // memory operations: Recordare shows its own side
+  } else log('idle', () => `client · ${who()} · ${s.op} · ${took}${err()}`); // memory operations: Recordare shows its own side
 }
 function clientEvents(): void {
   const es = new EventSource('/atlas/client-stream');
@@ -190,9 +211,12 @@ clientEvents();
 
 // ---------- awake / asleep: the sleep palette only while the service really consolidates ----------
 let wakeTimer: number | undefined;
+let sleeping = false;
+const showPhase = (): void => { $('phase').textContent = t(sleeping ? 'phase.asleep' : 'phase.awake'); };
 function asleep(on: boolean): void {
   brain.setSleep(on);
-  const el = $('phase'); el.textContent = on ? 'sonno · consolidamento' : 'veglia'; el.classList.toggle('asleep', on);
+  sleeping = on;
+  showPhase(); $('phase').classList.toggle('asleep', on);
   window.clearTimeout(wakeTimer);
   if (on) wakeTimer = window.setTimeout(() => asleep(false), 60_000); // no news for a minute: the night is over
 }
@@ -202,7 +226,7 @@ async function onEvent(e: TelemetryEvent, ownerId: string): Promise<void> {
   switch (e.type) {
     case 'message.ingested': {
       const n = Math.min(Number(e['messages']) || 1, 6);
-      log('in', `messaggi ricevuti · ${String(e['messages'])}`, e.at);
+      log('in', () => t('log.messages', { n: String(e['messages']) }), e.at);
       for (let i = 0; i < n; i++) window.setTimeout(() => void brain.fire('entry', 'thalamus', COLORS.white, { size: 0.2 }), i * 120);
       break;
     }
@@ -221,7 +245,7 @@ async function onEvent(e: TelemetryEvent, ownerId: string): Promise<void> {
       break;
     }
     case 'extraction.started':
-      log('in', `estrazione · finestra di ${String(e['messages'])} messaggi`, e.at);
+      log('in', () => t('log.extraction', { n: String(e['messages']) }), e.at);
       break;
     case 'llm.started': {
       // The request leaves now; the LLM region stays lit until the answer comes back (llm.call).
@@ -230,14 +254,14 @@ async function onEvent(e: TelemetryEvent, ownerId: string): Promise<void> {
       if (task === 'resolve') void brain.fire('hippoR', 'llm', COLORS.red, { size: 0.2 });
       else if (task === 'digest') { asleep(true); void brain.fire('hippoL', 'llm', COLORS.violet, { size: 0.2 }); }
       else void brain.fire('thalamus', 'llm', COLORS.amber, { size: 0.24 });
-      log('llm', `LLM in corso · ${String(e['promptId'])}…`, e.at);
+      log('llm', () => t('log.llmRunning', { prompt: String(e['promptId']) }), e.at);
       break;
     }
     case 'llm.call': {
       const task = taskOf(String(e['promptId']));
       brain.wait('llm', -1);
       counters.llm++; counters.tok += (Number(e['inputTokens']) || 0) + (Number(e['outputTokens']) || 0); show();
-      log('llm', `LLM ${String(e['promptId'])} · ${String(e['model'])} · ${String(e['inputTokens'])}→${String(e['outputTokens'])} tok · ${String(e['latencyMs'])} ms${e['status'] === 'ok' ? '' : ` · ${String(e['status'])}`}`, e.at);
+      log('llm', () => `LLM ${String(e['promptId'])} · ${String(e['model'])} · ${String(e['inputTokens'])}→${String(e['outputTokens'])} tok · ${String(e['latencyMs'])} ms${e['status'] === 'ok' ? '' : ` · ${String(e['status'])}`}`, e.at);
       // The answer leaves the LLM: verdicts to the conflict region, diaries to the cortex; extraction answers become
       // memory.written impulses (llm → the exact neuron).
       if (task === 'resolve') void brain.fire('llm', 'acc', COLORS.red);
@@ -249,25 +273,25 @@ async function onEvent(e: TelemetryEvent, ownerId: string): Promise<void> {
       const claim = e['authorRole'] === 'other' || e['authorRole'] === 'tool';
       brain.addNeuron(id, e['kind'] as string | undefined, e['authorRole'] as string | undefined, table);
       if (table === 'episodes') {
-        if (claim) { counters.cl++; log('warn', `affermazione di terzi isolata · ${String(e['kind'])}`, e.at); }
-        else { counters.ep++; log('ep', `episodio · ${String(e['kind'])} · importanza ${String(e['importance'])}`, e.at); }
+        if (claim) { counters.cl++; log('warn', () => t('log.claim', { kind: String(e['kind']) }), e.at); }
+        else { counters.ep++; log('ep', () => t('log.episode', { kind: String(e['kind']), n: String(e['importance']) }), e.at); }
         void brain.fire('llm', claim ? 'acc' : hippo(id), claim ? COLORS.red : COLORS.cyan, { to: id });
       } else {
-        counters.fn++; log('sleep', `${table === 'facts' ? 'fatto' : 'nota'} aggiornato`, e.at);
+        counters.fn++; log('sleep', () => t(table === 'facts' ? 'log.fact' : 'log.note'), e.at);
         void brain.fire('llm', 'cortex', COLORS.violet, { to: id });
       }
       show(); scheduleRefresh(ownerId);
       break;
     }
     case 'episode.linked':
-      log('warn', e['relation'] === 'corrects' ? 'correzione collegata' : 'doppione nascosto', e.at);
+      log('warn', () => t(e['relation'] === 'corrects' ? 'log.correction' : 'log.duplicate'), e.at);
       brain.link(String(e['from']), String(e['to']), e['relation'] === 'corrects' ? COLORS.red : 0x8899aa);
       scheduleRefresh(ownerId);
       break;
     case 'recall.served': {
       counters.rec++; show();
       const ids = (e['episodeIds'] as string[] | undefined) ?? [], claims = (e['claimIds'] as string[] | undefined) ?? [];
-      log('rec', `${String(e['tool'])}${e['mode'] ? ` (${String(e['mode'])})` : ''} · ${ids.length} episodi${claims.length ? ` · ${claims.length} voci di terzi` : ''}${Number(e['digests']) ? ` · ${String(e['digests'])} diari` : ''}${Number(e['facts']) ? ` · ${String(e['facts'])} fatti` : ''}`, e.at);
+      log('rec', () => `${String(e['tool'])}${e['mode'] ? ` (${String(e['mode'])})` : ''}${t('log.recallEpisodes', { n: ids.length })}${claims.length ? t('log.recallClaims', { n: claims.length }) : ''}${Number(e['digests']) ? t('log.recallDigests', { n: String(e['digests']) }) : ''}${Number(e['facts']) ? t('log.recallFacts', { n: String(e['facts']) }) : ''}`, e.at);
       await brain.fire('agent', 'prefrontal', COLORS.lime);
       const reach: Array<Promise<void>> = [];
       ids.slice(0, 20).forEach((id) => reach.push(brain.fire('prefrontal', hippo(id), COLORS.lime, { to: id, size: 0.18 })));
@@ -279,20 +303,20 @@ async function onEvent(e: TelemetryEvent, ownerId: string): Promise<void> {
     }
     case 'digest.written':
       asleep(true);
-      log('sleep', `diario ${e['level'] === 'month' ? 'del mese' : 'del giorno'} · ${String(e['period'])}`, e.at);
+      log('sleep', () => t(e['level'] === 'month' ? 'log.digestMonth' : 'log.digestDay', { period: String(e['period']) }), e.at);
       void brain.fire('hippoR', 'cortex', COLORS.violet);
       scheduleRefresh(ownerId);
       break;
     case 'consolidation.finished':
       asleep(false);
-      log('sleep', `consolidamento · ${String(e['days'])} giorni, ${String(e['months'])} mesi, ${String(e['llmCalls'])} chiamate`, e.at);
+      log('sleep', () => t('log.consolidation', { days: String(e['days']), months: String(e['months']), calls: String(e['llmCalls']) }), e.at);
       break;
     case 'episode.forgotten':
       brain.forget((e['ids'] as string[] | undefined) ?? []);
-      log('warn', `dimenticati ${((e['ids'] as string[] | undefined) ?? []).length} episodi`, e.at);
+      log('warn', () => t('log.forgotten', { n: ((e['ids'] as string[] | undefined) ?? []).length }), e.at);
       break;
     case 'extraction.finished':
-      if (e['status'] !== 'done') log('warn', `estrazione ${String(e['status'])}`, e.at);
+      if (e['status'] !== 'done') log('warn', () => t('log.extractionStatus', { status: String(e['status']) }), e.at);
       break;
   }
 }
@@ -334,3 +358,23 @@ addEventListener('mousemove', () => {
 });
 if (location.hash === '#onlybrain') setOnlyBrain(true);
 addEventListener('hashchange', () => setOnlyBrain(location.hash === '#onlybrain'));
+
+// ---------- language (English by default; ?lang=it|en or the header toggle, remembered in this browser) ----------
+function showLang(): void {
+  document.querySelectorAll<HTMLButtonElement>('[data-lang]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.lang === getLang())));
+}
+document.querySelectorAll<HTMLButtonElement>('[data-lang]').forEach((b) => b.addEventListener('click', () => {
+  const l = b.dataset.lang;
+  if ((LANGS as readonly string[]).includes(l ?? '')) setLang(l as Lang);
+}));
+onLangChange(() => {
+  applyStatic();
+  showLang();
+  brain.relabel();
+  status.textContent = statusText();
+  showPhase();
+  ownerOptions();
+  if (light || !bloom) $('render').textContent = t(renderKey);
+  $('events').querySelectorAll<HTMLElement>('li > span').forEach((span) => { const f = logText.get(span); if (f) span.textContent = f(); });
+});
+showLang(); showPhase(); status.textContent = statusText(); // the HTML holds the English defaults

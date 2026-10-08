@@ -99,3 +99,9 @@ body.only-brain.pointer .exit-only { display: block; }
 .phase { font: 600 10px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); padding: 0 4px; }
 .phase.asleep { color: var(--violet); }
 .phase.render { color: var(--amber); }
+/* Language toggle (EN / IT): two small segments; the chosen one is lit. */
+.controls .lang { display: inline-flex; }
+.controls .lang button { padding: 7px 8px; color: var(--muted); background: transparent; border-color: var(--line); }
+.controls .lang button:first-child { border-radius: 3px 0 0 3px; }
+.controls .lang button:last-child { border-radius: 0 3px 3px 0; border-left: 0; }
+.controls .lang button[aria-pressed="true"] { color: var(--cyan); background: rgba(56,232,255,.1); border-color: var(--cyan); border-left: 1px solid var(--cyan); }

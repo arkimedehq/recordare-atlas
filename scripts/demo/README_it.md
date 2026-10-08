@@ -37,7 +37,7 @@ rm $DEMO_STATE                        # contiene il token della persona
 ```
 
 Impostazioni: `RECORDARE_URL` (predefinito `http://localhost:8080`), `ATLAS_URL` (`http://127.0.0.1:5175`),
-`DEMO_SIZE` (`1600x900`), `DIGESTS_BEFORE_ONLY_BRAIN` (3); per l'agente `AGENT_LLM_BASE_URL` / `AGENT_LLM_API_KEY` /
+`DEMO_SIZE` (`1600x900`), `DEMO_LANG` (la lingua della pagina, `en` o `it`; predefinito `en`), `DIGESTS_BEFORE_ONLY_BRAIN` (3); per l'agente `AGENT_LLM_BASE_URL` / `AGENT_LLM_API_KEY` /
 `AGENT_LLM_MODEL` (predefinito: i `LLM_*` del servizio); per il taglio `PRE` / `POST` (secondi tenuti attorno a ogni
 evento, 0,4 / 1,5), `FADE` (0,3), `FPS` (12), `WIDTH` (1280), `QUALITY` (38), `KMAX` (un fotogramma chiave ogni 8).
 Costo di una registrazione: circa 16 chiamate LLM di un modello economico (3 estrazioni iniziali, 2 risposte

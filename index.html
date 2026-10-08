@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="it">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -10,54 +10,55 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
 </head>
 <body>
-  <div id="stage" aria-label="Cervello di Recordare"></div>
+  <div id="stage" aria-label="Recordare's brain" data-i18n-aria-label="page.stage"></div>
   <div class="scan" aria-hidden="true"></div>
-  <button id="exit-only" class="exit-only" type="button">Esci · Esc</button>
+  <button id="exit-only" class="exit-only" type="button" data-i18n="page.exitOnly">Exit · Esc</button>
   <p id="who" class="who" aria-live="polite"></p>
 
   <header class="hud">
     <div class="panel corner brand">
       <h1>Recordare <span>Neural Atlas</span></h1>
-      <p id="status" class="status off">non collegato</p>
+      <p id="status" class="status off">not connected</p>
     </div>
     <form id="connect" class="panel corner controls" autocomplete="off">
-      <label for="key">Chiave admin</label>
-      <input id="key" type="password" placeholder="(dal proxy locale)">
-      <label for="owner">Persona</label>
+      <label for="key" data-i18n="ctl.key">Admin key</label>
+      <input id="key" type="password" placeholder="(from the local proxy)" data-i18n-placeholder="ctl.keyPlaceholder">
+      <label for="owner" data-i18n="ctl.person">Person</label>
       <select id="owner" disabled><option>—</option></select>
-      <button id="go" type="submit">Collega</button>
-      <button id="rotate" class="toggle" type="button" aria-pressed="true" title="Rotazione lenta del punto di vista (tasto R)">Rotazione</button>
-      <span id="phase" class="phase" title="Sonno: il servizio sta consolidando (diari della notte)">veglia</span>
-      <span id="render" class="phase render" hidden title="Rendering alleggerito (parametri mode / bloom nell'URL): cambia quanto costa disegnare, non cosa viene mostrato">leggera</span>
-      <button id="only" type="button" title="Solo il cervello, a schermo intero (tasto B)">Solo cervello</button>
+      <button id="go" type="submit" data-i18n="ctl.connect">Connect</button>
+      <button id="rotate" class="toggle" type="button" aria-pressed="true" title="Slow rotation of the point of view (R key)" data-i18n-title="ctl.rotateTitle" data-i18n="ctl.rotate">Rotation</button>
+      <span id="phase" class="phase" title="Asleep: the service is consolidating (nightly digests)" data-i18n-title="phase.title">awake</span>
+      <span id="render" class="phase render" hidden title="Lightened rendering (mode / bloom in the URL): changes how much drawing costs, not what is shown" data-i18n-title="render.title">light</span>
+      <button id="only" type="button" title="Only the brain, full screen (B key)" data-i18n-title="ctl.onlyBrainTitle" data-i18n="ctl.onlyBrain">Only brain</button>
+      <span class="lang" role="group" aria-label="Language" data-i18n-aria-label="page.lang"><button type="button" data-lang="en" lang="en" aria-pressed="true">EN</button><button type="button" data-lang="it" lang="it" aria-pressed="false">IT</button></span>
     </form>
   </header>
 
-  <aside class="hud panel corner legend" aria-label="Regioni">
-    <h2>Regioni · componenti</h2>
-    <div class="reg" style="--c:#dff6ff"><i></i><b>Talamo</b><small>ingest dei messaggi</small></div>
-    <div class="reg" style="--c:#ffb547"><i></i><b>LLM · area di Wernicke</b><small>chiamate al modello (token reali)</small></div>
-    <div class="reg" style="--c:#ff8a3d"><i></i><b>Area di Broca</b><small>LLM degli agenti del client</small></div>
-    <div class="reg" style="--c:#ffe066"><i></i><b>Corteccia motoria</b><small>tool degli agenti del client</small></div>
-    <div class="reg" style="--c:#38e8ff"><i></i><b>Ippocampo</b><small>episodi: ogni neurone è un ricordo</small></div>
-    <div class="reg" style="--c:#ff5a6a"><i></i><b>Cingolo</b><small>conflitti e voci di terzi</small></div>
-    <div class="reg" style="--c:#9b7bff"><i></i><b>Neocorteccia</b><small>fatti, note, diari</small></div>
-    <div class="reg" style="--c:#9dff6a"><i></i><b>Prefrontale</b><small>richiami degli agenti</small></div>
-    <p class="note">Ogni impulso è un evento reale del servizio. Senza eventi il cervello resta fermo.</p>
+  <aside class="hud panel corner legend" aria-label="Regions" data-i18n-aria-label="legend.aria">
+    <h2 data-i18n="legend.title">Regions · components</h2>
+    <div class="reg" style="--c:#dff6ff"><i></i><b data-i18n="legend.thalamus">Thalamus</b><small data-i18n="legend.thalamusRole">message ingest</small></div>
+    <div class="reg" style="--c:#ffb547"><i></i><b data-i18n="legend.llm">LLM · Wernicke's area</b><small data-i18n="legend.llmRole">model calls (real tokens)</small></div>
+    <div class="reg" style="--c:#ff8a3d"><i></i><b data-i18n="legend.broca">Broca's area</b><small data-i18n="legend.brocaRole">client agents' LLM</small></div>
+    <div class="reg" style="--c:#ffe066"><i></i><b data-i18n="legend.motor">Motor cortex</b><small data-i18n="legend.motorRole">client agents' tools</small></div>
+    <div class="reg" style="--c:#38e8ff"><i></i><b data-i18n="legend.hippo">Hippocampus</b><small data-i18n="legend.hippoRole">episodes: each neuron is a memory</small></div>
+    <div class="reg" style="--c:#ff5a6a"><i></i><b data-i18n="legend.acc">Cingulate</b><small data-i18n="legend.accRole">conflicts and third-party claims</small></div>
+    <div class="reg" style="--c:#9b7bff"><i></i><b data-i18n="legend.cortex">Neocortex</b><small data-i18n="legend.cortexRole">facts, notes, digests</small></div>
+    <div class="reg" style="--c:#9dff6a"><i></i><b data-i18n="legend.prefrontal">Prefrontal</b><small data-i18n="legend.prefrontalRole">agents' recalls</small></div>
+    <p class="note" data-i18n="legend.note">Every impulse is a real event of the service. Without events the brain stays still.</p>
   </aside>
 
-  <aside class="hud panel corner log" aria-label="Eventi reali">
-    <h2>Eventi · live</h2>
+  <aside class="hud panel corner log" aria-label="Real events" data-i18n-aria-label="log.aria">
+    <h2 data-i18n="log.title">Events · live</h2>
     <ol id="events"></ol>
   </aside>
 
   <footer class="hud">
-    <div class="panel corner stat"><span>Episodi</span><strong class="c" id="s-ep">–</strong></div>
-    <div class="panel corner stat"><span>Fatti · note</span><strong class="v" id="s-fn">–</strong></div>
-    <div class="panel corner stat"><span>Chiamate LLM</span><strong class="a" id="s-llm">0</strong></div>
-    <div class="panel corner stat"><span>Token</span><strong class="a" id="s-tok">0</strong></div>
-    <div class="panel corner stat"><span>Richiami</span><strong class="l" id="s-rec">0</strong></div>
-    <div class="panel corner stat"><span>Voci di terzi</span><strong class="m" id="s-cl">–</strong></div>
+    <div class="panel corner stat"><span data-i18n="stat.episodes">Episodes</span><strong class="c" id="s-ep">–</strong></div>
+    <div class="panel corner stat"><span data-i18n="stat.factsNotes">Facts · notes</span><strong class="v" id="s-fn">–</strong></div>
+    <div class="panel corner stat"><span data-i18n="stat.llm">LLM calls</span><strong class="a" id="s-llm">0</strong></div>
+    <div class="panel corner stat"><span data-i18n="stat.tokens">Tokens</span><strong class="a" id="s-tok">0</strong></div>
+    <div class="panel corner stat"><span data-i18n="stat.recalls">Recalls</span><strong class="l" id="s-rec">0</strong></div>
+    <div class="panel corner stat"><span data-i18n="stat.claims">Third-party claims</span><strong class="m" id="s-cl">–</strong></div>
   </footer>
   <script type="module" src="/src/main.ts"></script>
 </body>

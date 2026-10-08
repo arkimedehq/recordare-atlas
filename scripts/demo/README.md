@@ -36,7 +36,8 @@ rm $DEMO_STATE                        # it holds the person's token
 ```
 
 Settings: `RECORDARE_URL` (default `http://localhost:8080`), `ATLAS_URL` (`http://127.0.0.1:5175`), `DEMO_SIZE`
-(`1600x900`), `DIGESTS_BEFORE_ONLY_BRAIN` (3); for the agent `AGENT_LLM_BASE_URL` / `AGENT_LLM_API_KEY` /
+(`1600x900`), `DEMO_LANG` (the page's language, `en` or `it`; default `en`), `DIGESTS_BEFORE_ONLY_BRAIN` (3); for the
+agent `AGENT_LLM_BASE_URL` / `AGENT_LLM_API_KEY` /
 `AGENT_LLM_MODEL` (default: the service's `LLM_*`); for the cut `PRE` / `POST` (seconds kept around each event, 0.4 /
 1.5), `FADE` (0.3), `FPS` (12), `WIDTH` (1280), `QUALITY` (38), `KMAX` (key frame every 8 frames). Cost of a
 recording: about 16 LLM calls of a cheap model (3 seed extractions, 2 agent replies, 1 extraction, ~10 digests).

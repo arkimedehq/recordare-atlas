@@ -13,27 +13,28 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { type Atlas, type AtlasEdge } from './api';
+import { t, type Key } from './i18n';
 
 export type Region = 'entry' | 'thalamus' | 'llm' | 'hippoL' | 'hippoR' | 'acc' | 'cortex' | 'prefrontal' | 'agent' | 'broca' | 'motor' | 'auditory';
 export const COLORS = { white: 0xdff6ff, cyan: 0x38e8ff, amber: 0xffb547, magenta: 0xff4fd8, lime: 0x9dff6a, violet: 0x9b7bff, red: 0xff5a6a, gold: 0xffe066, orange: 0xff8a3d } as const;
 
-/** `anatomy`: the real brain region (the only label in only-brain mode); `role`: what it does in Recordare. */
-const HUB: Record<Region, { pos: THREE.Vector3; color: number; anatomy?: string; role?: string }> = {
+/** `anatomy`: the real brain region (the only label in only-brain mode); `role`: what it does in Recordare (i18n keys). */
+const HUB: Record<Region, { pos: THREE.Vector3; color: number; anatomy?: Key; role?: Key }> = {
   entry:      { pos: new THREE.Vector3(0, 3.6, -4.2), color: COLORS.white },
-  thalamus:   { pos: new THREE.Vector3(0, 0.35, -0.2), color: COLORS.white, anatomy: 'Talamo', role: 'ingest' },
+  thalamus:   { pos: new THREE.Vector3(0, 0.35, -0.2), color: COLORS.white, anatomy: 'region.thalamus', role: 'role.thalamus' },
   // Language comprehension: the LLM reads the messages and extracts their meaning (Wernicke's area, by analogy).
-  llm:        { pos: new THREE.Vector3(1.9, 0.8, 1.1), color: COLORS.amber, anatomy: 'Area di Wernicke', role: 'LLM' },
-  hippoL:     { pos: new THREE.Vector3(-1.15, -0.55, -0.5), color: COLORS.cyan, anatomy: 'Ippocampo', role: 'episodi' },
-  hippoR:     { pos: new THREE.Vector3(1.15, -0.55, -0.5), color: COLORS.cyan, anatomy: 'Ippocampo' },
-  acc:        { pos: new THREE.Vector3(0, 1.4, 0.9), color: COLORS.red, anatomy: 'Cingolo anteriore', role: 'terzi' },
-  cortex:     { pos: new THREE.Vector3(-1.8, 1.35, -0.4), color: COLORS.violet, anatomy: 'Neocorteccia', role: 'fatti' },
-  prefrontal: { pos: new THREE.Vector3(0, 1.0, 2.7), color: COLORS.lime, anatomy: 'Corteccia prefrontale', role: 'richiamo' },
+  llm:        { pos: new THREE.Vector3(1.9, 0.8, 1.1), color: COLORS.amber, anatomy: 'region.llm', role: 'role.llm' },
+  hippoL:     { pos: new THREE.Vector3(-1.15, -0.55, -0.5), color: COLORS.cyan, anatomy: 'region.hippo', role: 'role.hippo' },
+  hippoR:     { pos: new THREE.Vector3(1.15, -0.55, -0.5), color: COLORS.cyan, anatomy: 'region.hippo' },
+  acc:        { pos: new THREE.Vector3(0, 1.4, 0.9), color: COLORS.red, anatomy: 'region.acc', role: 'role.acc' },
+  cortex:     { pos: new THREE.Vector3(-1.8, 1.35, -0.4), color: COLORS.violet, anatomy: 'region.cortex', role: 'role.cortex' },
+  prefrontal: { pos: new THREE.Vector3(0, 1.0, 2.7), color: COLORS.lime, anatomy: 'region.prefrontal', role: 'role.prefrontal' },
   agent:      { pos: new THREE.Vector3(0, 3.0, 6.2), color: COLORS.lime },
   // The client platform's own work (OpenTelemetry GenAI spans): its LLM producing language, its tools acting.
-  broca:      { pos: new THREE.Vector3(-1.75, 0.25, 1.85), color: COLORS.orange, anatomy: 'Area di Broca', role: 'LLM del client' },
-  motor:      { pos: new THREE.Vector3(1.1, 2.05, 0.35), color: COLORS.gold, anatomy: 'Corteccia motoria', role: 'tool e voce del client' },
+  broca:      { pos: new THREE.Vector3(-1.75, 0.25, 1.85), color: COLORS.orange, anatomy: 'region.broca', role: 'role.broca' },
+  motor:      { pos: new THREE.Vector3(1.1, 2.05, 0.35), color: COLORS.gold, anatomy: 'region.motor', role: 'role.motor' },
   // Hearing: the client's speech-to-text (temporal lobe, on the side).
-  auditory:   { pos: new THREE.Vector3(2.15, 0.35, 0.0), color: COLORS.cyan, anatomy: 'Corteccia uditiva', role: 'ascolto' },
+  auditory:   { pos: new THREE.Vector3(2.15, 0.35, 0.0), color: COLORS.cyan, anatomy: 'region.auditory', role: 'role.auditory' },
 };
 /** Saltatory conduction: on an axon the impulse jumps from one node of Ranvier to the next (spacing in scene units). */
 const RANVIER = 0.12;
@@ -162,6 +163,7 @@ export class Brain {
 
     this.buildShell();
     this.hubPoints = this.buildHubs();
+    this.relabel();
     this.buildTracts();
     const p = new Float32Array(this.MAXP * 3), c = new Float32Array(this.MAXP * 3), s = new Float32Array(this.MAXP);
     this.pulseGeo.setAttribute('position', new THREE.BufferAttribute(p, 3));
@@ -213,8 +215,8 @@ export class Brain {
         const el = document.createElement('div'); el.className = 'label'; el.style.color = `#${c.getHexString()}`;
         if (!h.anatomy) el.classList.add('no-anatomy');
         if (!h.role) el.classList.add('anatomy-only');
-        const a = document.createElement('span'); a.className = 'anatomy'; a.textContent = h.anatomy ?? '';
-        const r = document.createElement('span'); r.className = 'role'; r.textContent = h.anatomy ? (h.role ? ` · ${h.role}` : '') : h.role ?? '';
+        const a = document.createElement('span'); a.className = 'anatomy';
+        const r = document.createElement('span'); r.className = 'role';
         el.append(a, r);
         document.body.appendChild(el); this.labels.push({ el, pos: h.pos.clone().add(new THREE.Vector3(0, 0.45, 0)), region: name });
       }
@@ -441,6 +443,15 @@ export class Brain {
 
   /** Clears every wait (a reconnection may have lost the ends of jobs in flight). */
   idle(): void { this.busy.clear(); }
+  /** Writes the region labels in the current language (at start and when the language changes; nothing else redraws). */
+  relabel(): void {
+    for (const { el, region } of this.labels) {
+      const { anatomy, role } = HUB[region];
+      const [a, r] = el.children;
+      if (a) a.textContent = anatomy ? t(anatomy) : '';
+      if (r) r.textContent = anatomy ? (role ? ` · ${t(role)}` : '') : role ? t(role) : '';
+    }
+  }
 
   /** A slow orbit of the point of view: the camera moves, the data never does on its own. */
   setOrbit(on: boolean): void {

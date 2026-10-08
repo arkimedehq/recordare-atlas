@@ -21,6 +21,7 @@ const { chromium } = await import(process.env.PLAYWRIGHT_MODULE ?? 'playwright')
 const state = JSON.parse(readFileSync(cfg.state, 'utf8'));
 const out = process.env.OUT_DIR ?? `${process.env.TMPDIR ?? '/tmp'}/recordare-atlas-demo`; // frames stay outside the repository
 const [width, height] = (process.env.DEMO_SIZE ?? '1600x900').split('x').map(Number);
+const lang = process.env.DEMO_LANG ?? 'en'; // the page's language (en | it)
 mkdirSync(join(out, 'frames'), { recursive: true });
 
 const t0 = Date.now();
@@ -33,11 +34,12 @@ const browser = await chromium.launch({
   args: ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist'], // WebGL on the GPU (macOS); adjust per platform
 });
 const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: 1 });
-await page.goto(`${cfg.atlas}/`);
+await page.goto(`${cfg.atlas}/?lang=${encodeURIComponent(lang)}`);
 await page.waitForFunction((id) => [...document.querySelectorAll('#owner option')].some((o) => o.value === id), state.ownerId, { timeout: 20_000 });
 await page.selectOption('#owner', state.ownerId); // show the demo person (not "follow", so no other activity takes the view)
 await page.click('#go');
-await page.waitForFunction(() => document.querySelector('.status')?.textContent?.includes('in ascolto'), null, { timeout: 20_000 });
+// Listening to the chosen person (not following): read from the status's state, not its text, so any language works.
+await page.waitForFunction(() => document.querySelector('.status.on[data-follow="false"]'), null, { timeout: 20_000 });
 await page.evaluate(() => (document.activeElement)?.blur());
 await sleep(3000); // the snapshot settles
 
