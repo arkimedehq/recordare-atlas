@@ -1,7 +1,7 @@
 # Recordare Atlas
 
-<p align="center"><img src="docs/media/atlas-demo.webp" alt="Recordare Atlas: arrivano messaggi, un agente richiama ricordi e chiama il suo LLM, l'estrazione scrive un nuovo ricordo, poi il consolidamento notturno nella palette del sonno" width="100%"></p>
-<p align="center"><sub>Eventi reali da una sessione scriptata; tagliate le pause (<code>scripts/demo/</code>).</sub></p>
+<p align="center"><img src="docs/media/atlas-demo.webp" alt="Recordare Atlas: arrivano messaggi, un agente richiama ricordi e chiama il suo LLM, l'estrazione scrive nuovi ricordi, poi il consolidamento notturno nella palette del sonno" width="100%"></p>
+<p align="center"><sub>Eventi reali da una sessione scriptata (pagina in inglese); tagliate le pause (<code>scripts/demo/</code>).</sub></p>
 
 Copia italiana di `README.md` (il riferimento è la versione inglese).
 
@@ -71,7 +71,7 @@ di qualcun altro.
 **Lingua:** la pagina è in inglese o in italiano, inglese per impostazione predefinita (mai dedotta dal browser). Si
 cambia con il selettore EN / IT nell'intestazione o con `?lang=it` / `?lang=en` nell'URL; la scelta resta in questo
 browser. Il cambio riscrive subito ogni etichetta — comprese quelle delle regioni nel cervello e le righe di log già
-mostrate — senza ricaricare la scena. L'animazione in cima è stata registrata con la pagina in italiano.
+mostrate — senza ricaricare la scena.
 
 **Lavoro in corso:** una regione respira mentre lì gira lavoro reale — una chiamata LLM in volo (area di Wernicke,
 l'LLM), gli embedding dei messaggi in arrivo (talamo), la lettura del contesto e gli embedding dei nuovi ricordi

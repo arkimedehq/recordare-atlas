@@ -1,6 +1,6 @@
 # Recordare Atlas
 
-<p align="center"><img src="docs/media/atlas-demo.webp" alt="Recordare Atlas: messages arrive, an agent recalls memories and calls its LLM, extraction writes a new memory, then the nightly consolidation in the sleep palette" width="100%"></p>
+<p align="center"><img src="docs/media/atlas-demo.webp" alt="Recordare Atlas: messages arrive, an agent recalls memories and calls its LLM, extraction writes new memories, then the nightly consolidation in the sleep palette" width="100%"></p>
 <p align="center"><sub>Real events from a scripted session; idle gaps cut (<code>scripts/demo/</code>).</sub></p>
 
 A live brain view of a [Recordare](https://github.com/arkimedehq/recordare) installation: regions are Recordare's
@@ -67,7 +67,7 @@ in the log — never drawn on someone else's brain.
 **Language:** the page is in English or Italian, English by default (never guessed from the browser). Switch with the
 EN / IT toggle in the header or `?lang=it` / `?lang=en` in the URL; the choice is remembered in this browser. Switching
 rewrites every label at once — region labels in the brain and log lines already shown included — without reloading
-the scene. The animation at the top was recorded with the Italian page.
+the scene.
 
 **Work in progress:** a region breathes while real work runs there — an LLM call in flight (Wernicke's area, the
 LLM), embeddings of incoming messages (thalamus), the context read and the embeddings of new memories (hippocampi), a

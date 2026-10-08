@@ -18,7 +18,7 @@ const num = (name, d) => Number(process.env[name] ?? d);
 const PRE = num('PRE', 0.4), POST = num('POST', 1.5), FADE = num('FADE', 0.3), FPS = num('FPS', 12);
 // Lossy WebP; a key frame at least every KMAX frames (lossy delta frames otherwise keep stale blocks during the slow
 // change of palette at night).
-const WIDTH = num('WIDTH', 1280), QUALITY = num('QUALITY', 38), KMAX = num('KMAX', 8);
+const WIDTH = num('WIDTH', 1280), QUALITY = num('QUALITY', 36), KMAX = num('KMAX', 8);
 const ffmpeg = process.env.FFMPEG ?? 'ffmpeg';
 
 const tl = JSON.parse(readFileSync(join(dir, 'timeline.json'), 'utf8'));
