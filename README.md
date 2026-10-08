@@ -1,5 +1,8 @@
 # Recordare Atlas
 
+<p align="center"><img src="docs/media/atlas-demo.webp" alt="Recordare Atlas: messages arrive, an agent recalls memories and calls its LLM, extraction writes a new memory, then the nightly consolidation in the sleep palette" width="100%"></p>
+<p align="center"><sub>Real events from a scripted session; idle gaps cut (<code>scripts/demo/</code>).</sub></p>
+
 A live brain view of a [Recordare](https://github.com/arkimedehq/recordare) installation: regions are Recordare's
 components, neurons are a person's episodes (placed by meaning), synapses are real relations, and every impulse is a
 real event from the service's telemetry stream travelling the real path of that data. No simulated or decorative
