@@ -94,3 +94,7 @@ on, keeps it drawing). `?mode=light` lowers the cost of each frame for weak GPUs
 resolution, at most 30 frames per second; `&bloom=off` drops the glow pass entirely (also without `mode=light`). Both
 change only how much drawing costs, never what is shown: same events, same paths, same timing. A badge in the header
 says when the drawing is lightened. Which mode suits which hardware: `docs/HARDWARE.md`.
+
+## Support the project
+
+Recordare Atlas is free and open source under AGPL-3.0. If it is useful to you or your organization, you can support its ongoing development through [GitHub Sponsors](https://github.com/sponsors/andreagenovese). Sponsorship is entirely voluntary: it does **not** change the license or grant any additional rights — it simply helps sustain maintenance and new features.

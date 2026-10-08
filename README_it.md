@@ -102,3 +102,7 @@ ogni fotogramma per GPU deboli: pixel ratio 1, niente MSAA, bloom a metà risolu
 secondo; `&bloom=off` elimina del tutto il passaggio del bagliore (anche senza `mode=light`). Entrambi cambiano solo
 quanto costa disegnare, mai cosa si mostra: stessi eventi, stessi cammini, stessi tempi. Un badge nell'intestazione dice
 quando il disegno è alleggerito. Quale modalità per quale hardware: `docs/HARDWARE_it.md`.
+
+## Sostieni il progetto
+
+Recordare Atlas è libero e open source sotto AGPL-3.0. Se è utile a te o alla tua organizzazione, puoi sostenerne lo sviluppo tramite [GitHub Sponsors](https://github.com/sponsors/andreagenovese). La sponsorizzazione è del tutto volontaria: **non** modifica la licenza né concede diritti aggiuntivi — serve solo a sostenere la manutenzione e le nuove funzionalità.
