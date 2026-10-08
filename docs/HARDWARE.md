@@ -8,13 +8,13 @@ Italian copy: `HARDWARE_it.md`.
 
 ## Modes
 
-| | **Full** (default, built) | **Light** (`?mode=light`, planned — `docs/TODO.md`) |
+| | **Full** (default) | **Light** (`?mode=light`) |
 |---|---|---|
 | Pixel ratio | `min(devicePixelRatio, 2)` | 1 |
 | Antialias | MSAA | off |
-| Bloom | `UnrealBloomPass`, full resolution | half resolution (or off with `&bloom=off`) |
+| Bloom | `UnrealBloomPass`, full resolution (off with `?bloom=off`) | half resolution (off with `&bloom=off`) |
 | Frame rate | uncapped (display refresh) | capped at 30 fps |
-| When quiet | keeps drawing | planned: render on demand (both modes) |
+| When quiet | no frames while nothing moves (with the slow orbit on, the camera moves: frames continue) | same |
 | What is shown | every real event | the same — only the drawing cost changes |
 
 Both modes need **WebGL 2** (three.js ≥ r163 has no WebGL 1 renderer) and a recent Chromium / Firefox / Safari.

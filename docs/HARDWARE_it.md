@@ -8,13 +8,13 @@ Copia italiana di `HARDWARE.md` (il riferimento è la versione inglese).
 
 ## Modalità
 
-| | **Completa** (predefinita, implementata) | **Leggera** (`?mode=light`, pianificata — `docs/TODO.md`) |
+| | **Completa** (predefinita) | **Leggera** (`?mode=light`) |
 |---|---|---|
 | Pixel ratio | `min(devicePixelRatio, 2)` | 1 |
 | Antialias | MSAA | disattivato |
-| Bloom | `UnrealBloomPass`, piena risoluzione | mezza risoluzione (o disattivato con `&bloom=off`) |
+| Bloom | `UnrealBloomPass`, piena risoluzione (disattivato con `?bloom=off`) | mezza risoluzione (disattivato con `&bloom=off`) |
 | Frame rate | senza limite (refresh del display) | limitato a 30 fps |
-| A riposo | continua a disegnare | pianificato: rendering su richiesta (entrambe le modalità) |
+| A riposo | nessun frame finché niente si muove (con la rotazione lenta attiva la camera si muove: i frame continuano) | uguale |
 | Cosa mostra | ogni evento reale | lo stesso — cambia solo il costo del disegno |
 
 Entrambe le modalità richiedono **WebGL 2** (three.js ≥ r163 non ha più il renderer WebGL 1) e un Chromium / Firefox /

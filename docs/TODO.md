@@ -10,18 +10,18 @@ uncapped `requestAnimationFrame` loop that keeps drawing even when the service i
 Mali-G52 on RK3576 / RK3566 tablets) with high-DPI screens this means low frame rate, heat and battery wear.
 
 **What.** A rendering mode, chosen from the URL (`?mode=light`), that changes only how much drawing costs — never what is
-shown:
+shown. **Built** (2026-10-08), except the measurements:
 
-- [ ] Pixel ratio 1 (instead of `min(devicePixelRatio, 2)`); keep the glow point size consistent with it.
-- [ ] No MSAA (`antialias: false`).
-- [ ] Bloom at half resolution (option: `?mode=light&bloom=off` to drop it entirely).
-- [ ] Frame cap at 30 fps.
-- [ ] Render on demand when idle: when no impulse is travelling, the camera is still and no transition is running, stop
-      drawing frames until the next event or touch (useful in full mode too — the brain is still when the service is quiet).
-- [ ] Same events, same paths, same timing as full mode: light mode must not drop, merge or delay impulses (real events
-      only).
-- [ ] Mode shown in the UI (small badge) so a slow panel is not mistaken for a quiet service.
-- [ ] Document the parameter in `README.md` and the hardware grid in `docs/HARDWARE.md`.
+- [x] Pixel ratio 1 (instead of `min(devicePixelRatio, 2)`); glow points are sized from it, so they stay consistent.
+- [x] No MSAA (`antialias: false`).
+- [x] Bloom at half resolution; `bloom=off` drops it entirely (in any mode).
+- [x] Frame cap at 30 fps.
+- [x] Render on demand when idle (both modes): no impulse travelling, nothing fading, camera still → no frame until the
+      next event or touch. With the slow orbit on, the camera moves, so frames keep coming (30 fps in light mode).
+- [x] Same events, same paths, same timing as full mode: all motion is timed in seconds (the orbit too, now), so a lower
+      frame rate never slows or drops impulses.
+- [x] Mode shown in the UI (badge in the header) so a slow panel is not mistaken for a quiet service.
+- [x] Parameters in `README.md`, the hardware grid in `docs/HARDWARE.md`.
 - [ ] Measure on real devices (frame rate, GPU temperature after 1 h) and replace the estimates in `docs/HARDWARE.md`.
 
 Possible follow-up (not now): pick light mode automatically from a short frame-time probe at start-up.

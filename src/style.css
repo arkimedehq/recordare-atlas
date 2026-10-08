@@ -98,3 +98,4 @@ body.only-brain.pointer .exit-only { display: block; }
 .controls .toggle[aria-pressed="true"] { color: var(--cyan); background: rgba(56,232,255,.1); border-color: var(--cyan); }
 .phase { font: 600 10px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); padding: 0 4px; }
 .phase.asleep { color: var(--violet); }
+.phase.render { color: var(--amber); }
