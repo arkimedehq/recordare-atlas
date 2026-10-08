@@ -76,5 +76,6 @@ service really consolidates (digest calls and digests written), and wakes at `co
 minute — never a simulated replay.
 
 **Only-brain mode (screensaver):** the "Solo cervello" button, the `B` key or `http://127.0.0.1:5175/#onlybrain` hide
-everything but the brain (full screen, slow orbit of the camera — the view moves, the data never does on its own);
-`Esc` or `B` to exit.
+everything but the brain (full screen, slow orbit of the camera — the view moves, the data never does on its own). The
+brain fills the screen, centred, at every angle of the orbit: a longer lens, and a framing (height and distance) computed
+from the shell for each side the camera passes; `Esc` or `B` to exit and glide back to the previous view.

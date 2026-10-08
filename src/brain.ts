@@ -39,6 +39,11 @@ const HUB: Record<Region, { pos: THREE.Vector3; color: number; anatomy?: string;
 const RANVIER = 0.12;
 /** Speed along myelinated axons (units/s) and the pause at each synapse while the next neuron integrates and fires. */
 const CONDUCTION = 5.5, SYNAPTIC_DELAY = 0.075;
+/** Field of view of the normal view and of only-brain mode (a longer lens: less perspective, so the brain at every
+ * angle of the orbit fits a tighter frame), and a little air around the brain at its widest. */
+const FOV = 42, FILL_FOV = 24, FILL_MARGIN = 1.03;
+/** Glow points are sized in pixels: a longer lens magnifies the scene, so it magnifies them too (shared by all). */
+const lens = { value: 1 };
 /** Fibre tracts actually used by the data flow. */
 const TRACTS: Array<[Region, Region]> = [
   ['entry', 'thalamus'], ['thalamus', 'llm'], ['llm', 'hippoL'], ['llm', 'hippoR'], ['llm', 'cortex'], ['llm', 'acc'],
@@ -49,6 +54,8 @@ const TRACTS: Array<[Region, Region]> = [
   ['auditory', 'llm'], ['broca', 'motor'],          // hearing → understanding; words → the voice that says them
 ];
 
+/** A framing of the camera: what it looks at, from how far, with which lens. */
+interface View { target: THREE.Vector3; distance: number; fov: number }
 interface Neuron { id: string; pos: THREE.Vector3; color: THREE.Color; base: number; glow: number; region: Region; dim: boolean }
 /** A polysynaptic path: the points it passes and, for each, the relay neuron there (-1 = a hub or a memory neuron). */
 interface Path { pts: THREE.Vector3[]; relays: number[] }
@@ -64,9 +71,9 @@ const rnd = (seed: string) => { let h = 2166136261; for (const c of seed) h = Ma
 function glowMaterial(scale: number): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
     transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, vertexColors: true,
-    uniforms: { uScale: { value: scale } },
-    vertexShader: `attribute float size; varying vec3 vColor; uniform float uScale;
-      void main(){ vColor = color; vec4 mv = modelViewMatrix * vec4(position,1.0); gl_PointSize = size * uScale * (300.0 / -mv.z); gl_Position = projectionMatrix * mv; }`,
+    uniforms: { uScale: { value: scale }, uLens: lens },
+    vertexShader: `attribute float size; varying vec3 vColor; uniform float uScale; uniform float uLens;
+      void main(){ vColor = color; vec4 mv = modelViewMatrix * vec4(position,1.0); gl_PointSize = size * uScale * uLens * (300.0 / -mv.z); gl_Position = projectionMatrix * mv; }`,
     fragmentShader: `varying vec3 vColor; void main(){ float d = length(gl_PointCoord - 0.5); float a = smoothstep(0.5, 0.0, d); a *= a; gl_FragColor = vec4(vColor * a, a); }`,
   });
 }
@@ -101,6 +108,16 @@ export class Brain {
   private sleepTarget = 0;
   private readonly AWAKE = new THREE.Color(0x04060b);
   private readonly ASLEEP = new THREE.Color(0x0a0520);
+  /** A sample of the shell's points, to frame the whole brain; its vertical span gives the centre. */
+  private readonly outline: THREE.Vector3[] = [];
+  private readonly span = { yMin: Infinity, yMax: -Infinity };
+  /** Only-brain framing on; the user's own view to return to; where the camera is gliding (null: it is there). */
+  private filling = false;
+  private userView: View | null = null;
+  private glide: View | null = null;
+  /** Only-brain: for each orbit azimuth (24 steps) the height to look at and the distance, so the brain stays centred
+   * and fills the screen as it turns. */
+  private lift: Array<{ y: number; d: number }> | null = null;
   private readonly bg = new THREE.Color(0x04060b);
 
   constructor(host: HTMLElement) {
@@ -110,7 +127,7 @@ export class Brain {
     this.renderer.setClearColor(0x04060b, 1);
     host.appendChild(this.renderer.domElement);
     this.scene.fog = new THREE.FogExp2(0x04060b, 0.028);
-    this.camera = new THREE.PerspectiveCamera(42, innerWidth / innerHeight, 0.1, 200);
+    this.camera = new THREE.PerspectiveCamera(FOV, innerWidth / innerHeight, 0.1, 200);
     this.camera.position.set(6.4, 2.6, 7.8);
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableDamping = true;
@@ -148,6 +165,11 @@ export class Brain {
     }
     for (let i = 0; i < 1800; i++) {
       const v = sphere(); pos.push(v.x * 1.5, v.y * 0.6 - 1.25, v.z * 0.95 - 2.35); c.setHSL(0.57, 0.6, 0.08 + r() * 0.1); col.push(c.r, c.g, c.b); size.push(0.03 + r() * 0.03);
+    }
+    for (let i = 0; i < pos.length; i += 3) {
+      const y = pos[i + 1]!;
+      this.span.yMin = Math.min(this.span.yMin, y); this.span.yMax = Math.max(this.span.yMax, y);
+      if (i % 30 === 0) this.outline.push(new THREE.Vector3(pos[i], y, pos[i + 2]));
     }
     this.scene.add(this.points(pos, col, size, 1));
   }
@@ -400,12 +422,79 @@ export class Brain {
     this.controls.autoRotateSpeed = 0.35;
   }
 
+  /** Only-brain mode: the brain centred and filling the screen as the orbit turns; off: back to the user's own view. */
+  setFill(on: boolean): void {
+    if (on === this.filling) return;
+    this.filling = on;
+    if (on) {
+      this.userView = { target: this.controls.target.clone(), distance: this.camera.position.distanceTo(this.controls.target), fov: this.camera.fov };
+      this.glide = null; this.frameFill();
+    } else { this.lift = null; this.glide = this.userView; this.userView = null; }
+  }
+
+  /**
+   * The closest view that holds the whole brain, for each of 24 azimuths of the orbit: the brain is not symmetric (the
+   * cerebellum hangs low at the back) and is longer than wide, so from each side it has its own middle and its own size.
+   * Seen from the camera's elevation, the height looked at is the middle of the brain from there, and the distance the
+   * one at which its farthest shell point touches the edge of the field of view. The camera follows them as it turns.
+   */
+  private frameFill(): void {
+    const dir = this.camera.position.clone().sub(this.controls.target).normalize();
+    const elev = Math.asin(Math.min(1, Math.abs(dir.y))) * Math.sign(dir.y), ce = Math.cos(elev), se = Math.sin(elev);
+    const tanV = Math.tan(THREE.MathUtils.degToRad(FILL_FOV / 2)), tanH = tanV * this.camera.aspect;
+    const { yMin, yMax } = this.span;
+    /** Seen from azimuth `k` around height `cy`: the distance the brain needs, and its middle seen from distance `at`. */
+    const look = (k: number, cy: number, at = 0) => {
+      const az = (k / 24) * Math.PI * 2, ca = Math.cos(az), sa = Math.sin(az);
+      let need = 0, top = -Infinity, bottom = Infinity;
+      for (const p of this.outline) {
+        const y = p.y - cy, h = p.x * ca + p.z * sa, f = -p.x * sa + p.z * ca; // across the view, towards the camera (flat)
+        const toward = f * ce + y * se, up = y * ce - f * se;                  // tilted by the elevation
+        need = Math.max(need, toward + Math.abs(h) / tanH, toward + Math.abs(up) / tanV);
+        if (at) { const v = up / (at - toward); top = Math.max(top, v); bottom = Math.min(bottom, v); }
+      }
+      return { need, mid: (top + bottom) / 2 };
+    };
+    const cy = (yMin + yMax) / 2, far = 4 * (yMax - yMin);
+    this.lift = Array.from({ length: 24 }, (_, k) => {
+      const y = cy + look(k, cy, far).mid * far / ce;
+      return { y, d: look(k, y).need * FILL_MARGIN };
+    });
+  }
+
+  /** Height and distance for the camera's current azimuth (interpolated between the 24 steps). */
+  private liftAt(): { y: number; d: number } {
+    const lift = this.lift!, o = this.camera.position.clone().sub(this.controls.target);
+    const t = ((Math.atan2(-o.x, o.z) / (Math.PI * 2)) * 24 + 24) % 24, i = Math.floor(t), u = t - i;
+    const a = lift[i]!, b = lift[(i + 1) % 24]!;
+    return { y: a.y * (1 - u) + b.y * u, d: a.d * (1 - u) + b.d * u };
+  }
+
   /** Sleep palette while the service really consolidates (deeper violet night, stronger glow); awake otherwise. */
   setSleep(on: boolean): void { this.sleepTarget = on ? 1 : 0; }
 
   private resize(): void {
     this.camera.aspect = innerWidth / innerHeight; this.camera.updateProjectionMatrix();
     this.renderer.setSize(innerWidth, innerHeight); this.composer.setSize(innerWidth, innerHeight);
+    if (this.filling) this.frameFill();
+  }
+
+  /**
+   * The camera eases to its framing and lens: in only-brain mode it keeps following the framing of the azimuth it is at;
+   * leaving it, it glides back to the user's view (about a second). The orbit and the user's hand keep working meanwhile.
+   */
+  private glideStep(dt: number): void {
+    let goal = this.glide;
+    if (this.lift) { const { y, d } = this.liftAt(); goal = { target: new THREE.Vector3(0, y, 0), distance: d, fov: FILL_FOV }; }
+    if (!goal) return;
+    const k = matchMedia('(prefers-reduced-motion: reduce)').matches ? 1 : 1 - Math.exp(-dt * 4);
+    const off = this.camera.position.clone().sub(this.controls.target).normalize();
+    const d = this.camera.position.distanceTo(this.controls.target), nd = d + (goal.distance - d) * k;
+    this.controls.target.lerp(goal.target, k);
+    this.camera.position.copy(this.controls.target).addScaledVector(off, nd);
+    this.camera.fov += (goal.fov - this.camera.fov) * k; this.camera.updateProjectionMatrix();
+    lens.value = Math.tan(THREE.MathUtils.degToRad(FOV / 2)) / Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2));
+    if (!this.lift && Math.abs(nd - goal.distance) < 1e-3 && this.controls.target.distanceTo(goal.target) < 1e-3 && Math.abs(this.camera.fov - goal.fov) < 1e-3) this.glide = null;
   }
 
   private readonly proj = new THREE.Vector3();
@@ -478,6 +567,7 @@ export class Brain {
       rc.needsUpdate = true; rs.needsUpdate = true;
     }
     this.pulseGeo.setDrawRange(0, k); p.needsUpdate = true; c.needsUpdate = true; s.needsUpdate = true;
+    this.glideStep(dt);
     this.controls.update();
     this.composer.render();
     for (const l of this.labels) {

@@ -310,6 +310,7 @@ let pointerTimer: number | undefined;
 function setOnlyBrain(on: boolean): void {
   document.body.classList.toggle('only-brain', on);
   brain.setOrbit(on || rotate);
+  brain.setFill(on);
   if (on) { document.documentElement.requestFullscreen?.().catch(() => undefined); history.replaceState(null, '', '#onlybrain'); }
   else { if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined); history.replaceState(null, '', location.pathname); }
 }
