@@ -11,7 +11,11 @@ import { atlas, owners, stream, type TelemetryEvent } from './api';
 import { Brain, COLORS, type Region } from './brain';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
-const brain = new Brain($('stage'));
+// How much drawing costs, from the URL: `?mode=light` for low-power GPUs, `bloom=off` to drop the glow pass entirely.
+const params = new URLSearchParams(location.search);
+const light = params.get('mode') === 'light', bloom = params.get('bloom') !== 'off';
+const brain = new Brain($('stage'), { light, bloom });
+if (light || !bloom) { const badge = $('render'); badge.hidden = false; badge.textContent = light ? (bloom ? 'leggera' : 'leggera · senza bloom') : 'senza bloom'; }
 const keyInput = $<HTMLInputElement>('key'), ownerSelect = $<HTMLSelectElement>('owner'), status = $('status');
 const counters = { ep: 0, fn: 0, llm: 0, tok: 0, rec: 0, cl: 0 };
 let stopStream: (() => void) | null = null;
@@ -312,7 +316,7 @@ function setOnlyBrain(on: boolean): void {
   brain.setOrbit(on || rotate);
   brain.setFill(on);
   if (on) { document.documentElement.requestFullscreen?.().catch(() => undefined); history.replaceState(null, '', '#onlybrain'); }
-  else { if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined); history.replaceState(null, '', location.pathname); }
+  else { if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined); history.replaceState(null, '', location.pathname + location.search); }
 }
 $('only').addEventListener('click', () => setOnlyBrain(true));
 $('exit-only').addEventListener('click', () => setOnlyBrain(false));

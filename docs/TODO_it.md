@@ -11,18 +11,19 @@ Su GPU mobili deboli (es. Mali-G52 dei tablet RK3576 / RK3566) con schermi ad al
 calore e usura della batteria.
 
 **Cosa.** Una modalità di rendering, scelta dall'URL (`?mode=light`), che cambia solo quanto costa disegnare — mai cosa
-viene mostrato:
+viene mostrato. **Implementata** (2026-10-08), tranne le misure:
 
-- [ ] Pixel ratio 1 (invece di `min(devicePixelRatio, 2)`); dimensione dei punti luminosi coerente.
-- [ ] Niente MSAA (`antialias: false`).
-- [ ] Bloom a mezza risoluzione (opzione: `?mode=light&bloom=off` per toglierlo del tutto).
-- [ ] Limite a 30 fps.
-- [ ] Rendering su richiesta quando è tutto fermo: nessun impulso in viaggio, camera ferma, nessuna transizione → niente
-      frame fino al prossimo evento o tocco (utile anche in modalità completa — quando il servizio tace, il cervello è fermo).
-- [ ] Stessi eventi, stessi percorsi, stessi tempi della modalità completa: la modalità leggera non scarta, non unisce e
-      non ritarda impulsi (solo eventi reali).
-- [ ] Modalità indicata nella UI (piccolo badge), così un pannello lento non si confonde con un servizio fermo.
-- [ ] Documentare il parametro in `README.md` e la griglia hardware in `docs/HARDWARE.md`.
+- [x] Pixel ratio 1 (invece di `min(devicePixelRatio, 2)`); i punti luminosi sono dimensionati da esso, quindi restano coerenti.
+- [x] Niente MSAA (`antialias: false`).
+- [x] Bloom a mezza risoluzione; `bloom=off` lo toglie del tutto (in qualsiasi modalità).
+- [x] Limite a 30 fps.
+- [x] Rendering su richiesta a riposo (entrambe le modalità): nessun impulso in viaggio, niente in dissolvenza, camera
+      ferma → nessun frame fino al prossimo evento o tocco. Con la rotazione lenta attiva la camera si muove, quindi i
+      frame continuano (30 fps in modalità leggera).
+- [x] Stessi eventi, stessi percorsi, stessi tempi della modalità completa: ogni movimento è temporizzato in secondi
+      (ora anche la rotazione), quindi un frame rate più basso non rallenta né scarta impulsi.
+- [x] Modalità indicata nella UI (badge nell'intestazione), così un pannello lento non si confonde con un servizio fermo.
+- [x] Parametri nel `README.md`, griglia hardware in `docs/HARDWARE.md`.
 - [ ] Misurare su dispositivi reali (FPS, temperatura GPU dopo 1 h) e sostituire le stime in `docs/HARDWARE.md`.
 
 Possibile seguito (non ora): scegliere la modalità leggera in automatico da una breve misura del tempo di frame all'avvio.

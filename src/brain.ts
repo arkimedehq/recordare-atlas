@@ -42,6 +42,8 @@ const CONDUCTION = 5.5, SYNAPTIC_DELAY = 0.075;
 /** Field of view of the normal view and of only-brain mode (a longer lens: less perspective, so the brain at every
  * angle of the orbit fits a tighter frame), and a little air around the brain at its widest. */
 const FOV = 42, FILL_FOV = 24, FILL_MARGIN = 1.03;
+/** Light mode (low-power GPUs): frames per second at most. */
+const LIGHT_FPS = 30;
 /** Glow points are sized in pixels: a longer lens magnifies the scene, so it magnifies them too (shared by all). */
 const lens = { value: 1 };
 /** Fibre tracts actually used by the data flow. */
@@ -78,12 +80,23 @@ function glowMaterial(scale: number): THREE.ShaderMaterial {
   });
 }
 
+/**
+ * How much drawing costs — never what is shown. `light`: pixel ratio 1, no MSAA, bloom at half resolution, at most
+ * LIGHT_FPS frames per second. `bloom: false`: no bloom at all (and no post-processing pass).
+ */
+export interface RenderOptions { light?: boolean; bloom?: boolean }
+
+/** Bloom computed at half the usual resolution (a quarter of the pixels), then stretched over the frame. */
+class HalfResBloom extends UnrealBloomPass {
+  override setSize(width: number, height: number): void { super.setSize(width / 2, height / 2); }
+}
+
 export class Brain {
   private readonly renderer: THREE.WebGLRenderer;
   private readonly scene = new THREE.Scene();
   private readonly camera: THREE.PerspectiveCamera;
   private readonly controls: OrbitControls;
-  private readonly composer: EffectComposer;
+  private readonly composer: EffectComposer | null = null;
   private readonly clock = new THREE.Clock();
   private readonly labels: Array<{ el: HTMLElement; pos: THREE.Vector3; region: Region }> = [];
   private readonly heat = new Map<Region, number>();
@@ -102,7 +115,13 @@ export class Brain {
   private readonly pulseGeo = new THREE.BufferGeometry();
   private readonly hubPoints: THREE.Points;
   private readonly MAXP = 3000;
-  private readonly bloom: UnrealBloomPass;
+  private readonly bloom: UnrealBloomPass | null = null;
+  private readonly light: boolean;
+  /** Something changed that the next frame must show (a snapshot, a new neuron, a resize). */
+  private dirty = true;
+  /** Last frame left something still fading (a neuron's or relay's glow, a hub's heat). */
+  private glowing = false;
+  private lastFrame = -Infinity;
   /** 0 = awake, 1 = asleep (nightly consolidation running): the palette follows it smoothly. */
   private sleep = 0;
   private sleepTarget = 0;
@@ -120,9 +139,10 @@ export class Brain {
   private lift: Array<{ y: number; d: number }> | null = null;
   private readonly bg = new THREE.Color(0x04060b);
 
-  constructor(host: HTMLElement) {
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  constructor(host: HTMLElement, opts: RenderOptions = {}) {
+    this.light = !!opts.light;
+    this.renderer = new THREE.WebGLRenderer({ antialias: !this.light, powerPreference: 'high-performance' });
+    this.renderer.setPixelRatio(this.light ? 1 : Math.min(devicePixelRatio, 2));
     this.renderer.setSize(innerWidth, innerHeight);
     this.renderer.setClearColor(0x04060b, 1);
     host.appendChild(this.renderer.domElement);
@@ -132,10 +152,13 @@ export class Brain {
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableDamping = true;
     this.controls.target.set(0, 0.3, 0);
-    this.composer = new EffectComposer(this.renderer);
-    this.composer.addPass(new RenderPass(this.scene, this.camera));
-    this.bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 1.05, 0.6, 0.06);
-    this.composer.addPass(this.bloom);
+    if (opts.bloom !== false) {
+      this.composer = new EffectComposer(this.renderer);
+      this.composer.addPass(new RenderPass(this.scene, this.camera));
+      const Bloom = this.light ? HalfResBloom : UnrealBloomPass;
+      this.bloom = new Bloom(new THREE.Vector2(innerWidth, innerHeight), 1.05, 0.6, 0.06);
+      this.composer.addPass(this.bloom);
+    }
 
     this.buildShell();
     this.hubPoints = this.buildHubs();
@@ -147,7 +170,7 @@ export class Brain {
     this.pulseGeo.setDrawRange(0, 0);
     this.scene.add(new THREE.Points(this.pulseGeo, glowMaterial(this.renderer.getPixelRatio() * 1.3)));
     addEventListener('resize', () => this.resize());
-    this.loop();
+    requestAnimationFrame(this.loop);
   }
 
   // ---------- static anatomy ----------
@@ -311,6 +334,7 @@ export class Brain {
     this.neurons = neurons;
     this.rebuildNeurons();
     this.rebuildSynapses(atlas.edges);
+    this.dirty = true;
   }
 
   private rebuildNeurons(): void {
@@ -400,12 +424,14 @@ export class Brain {
     this.neurons.set(id, { id, pos: HUB[region].pos.clone().add(v), color: new THREE.Color(color), base: 0.16, glow: 2, region, dim: false });
     this.rebuildNeurons();
     this.rebuildSynapses(this.edges);
+    this.dirty = true;
   }
 
   forget(ids: string[]): void {
     for (const id of ids) this.neurons.delete(id);
     this.rebuildNeurons();
     this.rebuildSynapses(this.edges);
+    this.dirty = true;
   }
 
   regionOf(id: string): Region | undefined { return this.neurons.get(id)?.region; }
@@ -475,7 +501,8 @@ export class Brain {
 
   private resize(): void {
     this.camera.aspect = innerWidth / innerHeight; this.camera.updateProjectionMatrix();
-    this.renderer.setSize(innerWidth, innerHeight); this.composer.setSize(innerWidth, innerHeight);
+    this.renderer.setSize(innerWidth, innerHeight); this.composer?.setSize(innerWidth, innerHeight);
+    this.dirty = true;
     if (this.filling) this.frameFill();
   }
 
@@ -497,14 +524,31 @@ export class Brain {
     if (!this.lift && Math.abs(nd - goal.distance) < 1e-3 && this.controls.target.distanceTo(goal.target) < 1e-3 && Math.abs(this.camera.fov - goal.fov) < 1e-3) this.glide = null;
   }
 
-  private readonly proj = new THREE.Vector3();
-  private loop = (): void => {
+  /**
+   * Every display refresh: move the camera (orbit, glide, the user's hand), then draw a frame only if something is
+   * moving or changed — a quiet service leaves a still brain, and a still brain costs no drawing. Light mode also
+   * caps the frame rate. Timing is in seconds, so impulses take the same time at any frame rate.
+   */
+  private loop = (now: number): void => {
+    requestAnimationFrame(this.loop);
+    if (this.light && now - this.lastFrame < 1000 / LIGHT_FPS - 2) return; // 2 ms of slack for refresh jitter
     const dt = Math.min(this.clock.getDelta(), 0.05);
+    this.glideStep(dt);
+    const moved = this.controls.update(dt);
+    const busy = [...this.busy.values()].some((n) => n > 0);
+    if (!moved && !this.dirty && !this.glide && !this.lift && !this.glowing && !busy && !this.pulses.length && this.sleep === this.sleepTarget) return;
+    this.lastFrame = now; this.dirty = false;
+    this.frame(dt);
+  };
+
+  private readonly proj = new THREE.Vector3();
+  private frame(dt: number): void {
+    let glowing = false;
     if (this.sleep !== this.sleepTarget) {
       this.sleep += Math.sign(this.sleepTarget - this.sleep) * Math.min(Math.abs(this.sleepTarget - this.sleep), dt / 1.5);
       this.bg.copy(this.AWAKE).lerp(this.ASLEEP, this.sleep);
       this.renderer.setClearColor(this.bg, 1); (this.scene.fog as THREE.FogExp2).color.copy(this.bg);
-      this.bloom.strength = 1.05 + 0.4 * this.sleep;
+      if (this.bloom) this.bloom.strength = 1.05 + 0.4 * this.sleep;
       document.body.style.background = `#${this.bg.getHexString()}`;
     }
     // neurons: steady light + the glow events leave behind
@@ -514,14 +558,14 @@ export class Brain {
       const size = this.neuronPoints.geometry.getAttribute('size') as THREE.BufferAttribute;
       order.forEach((id, i) => {
         const n = this.neurons.get(id); if (!n) return;
-        n.glow = Math.max(0, n.glow - dt * 0.8);
+        n.glow = Math.max(0, n.glow - dt * 0.8); if (n.glow > 0) glowing = true;
         const f = (n.dim ? 0.35 : 1) * (1 + n.glow * 1.5);
         col.setXYZ(i, n.color.r * f, n.color.g * f, n.color.b * f); size.setX(i, n.base + n.glow * 0.22);
       });
       col.needsUpdate = true; size.needsUpdate = true;
     }
     // hubs glow only after an arrival
-    for (const [r, h] of this.heat) this.heat.set(r, Math.max(0, h - dt * 0.7));
+    for (const [r, h] of this.heat) { this.heat.set(r, Math.max(0, h - dt * 0.7)); if (h > 0) glowing = true; }
     const now = this.clock.elapsedTime;
     for (const [r, n] of this.busy) if (n > 0) this.heat.set(r, Math.max(this.heat.get(r) ?? 0, 0.55 + 0.3 * Math.sin(now * 4)));
     // region hubs light up with their heat (arrivals, calls in flight)
@@ -560,23 +604,21 @@ export class Brain {
     if (this.relayPoints) {
       const rc = this.relayPoints.geometry.getAttribute('color') as THREE.BufferAttribute, rs = this.relayPoints.geometry.getAttribute('size') as THREE.BufferAttribute;
       this.relays.forEach((r, i) => {
-        r.glow = Math.max(0, r.glow - dt * 2.2);
+        r.glow = Math.max(0, r.glow - dt * 2.2); if (r.glow > 0) glowing = true;
         const f = 0.8 + r.glow * 2;
         rc.setXYZ(i, r.color.r * f, r.color.g * f, r.color.b * f); rs.setX(i, r.size + r.glow * 0.12);
       });
       rc.needsUpdate = true; rs.needsUpdate = true;
     }
     this.pulseGeo.setDrawRange(0, k); p.needsUpdate = true; c.needsUpdate = true; s.needsUpdate = true;
-    this.glideStep(dt);
-    this.controls.update();
-    this.composer.render();
+    if (this.composer) this.composer.render(); else this.renderer.render(this.scene, this.camera);
     for (const l of this.labels) {
       this.proj.copy(l.pos).project(this.camera);
       l.el.style.display = this.proj.z < 1 ? '' : 'none';
       l.el.style.left = `${(this.proj.x + 1) / 2 * innerWidth}px`; l.el.style.top = `${(1 - this.proj.y) / 2 * innerHeight}px`;
     }
-    requestAnimationFrame(this.loop);
-  };
+    this.glowing = glowing;
+  }
 }
 
 /** Cube → ball: principal components span a box; this keeps their order but rounds the cloud like tissue. */

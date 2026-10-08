@@ -79,3 +79,10 @@ minute — never a simulated replay.
 everything but the brain (full screen, slow orbit of the camera — the view moves, the data never does on its own). The
 brain fills the screen, centred, at every angle of the orbit: a longer lens, and a framing (height and distance) computed
 from the shell for each side the camera passes; `Esc` or `B` to exit and glide back to the previous view.
+
+**Drawing cost (low-power GPUs, always-on screens).** When nothing moves — no impulse travelling, nothing still fading,
+the camera still — no frame is drawn: a quiet service leaves a still brain that costs no drawing (the slow orbit, when
+on, keeps it drawing). `?mode=light` lowers the cost of each frame for weak GPUs: pixel ratio 1, no MSAA, bloom at half
+resolution, at most 30 frames per second; `&bloom=off` drops the glow pass entirely (also without `mode=light`). Both
+change only how much drawing costs, never what is shown: same events, same paths, same timing. A badge in the header
+says when the drawing is lightened. Which mode suits which hardware: `docs/HARDWARE.md`.
