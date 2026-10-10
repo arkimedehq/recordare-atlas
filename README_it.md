@@ -12,8 +12,8 @@ cammino reale di quel dato. Nessun movimento simulato o decorativo: quando il se
 Solo metadati — nessun contenuto di messaggi o ricordi arriva mai all'atlante.
 
 **Opzionale.** Recordare funziona allo stesso modo senza (senza nessuno in ascolto, la sua telemetria non costa nulla).
-L'atlante legge tre endpoint admin di sola lettura di Recordare e segue il contratto di eventi `atlas-events v1`
-(Recordare `docs/ATLAS_EVENTS.md`); i due repository evolvono separatamente.
+L'atlante legge tre endpoint admin di sola lettura di Recordare e segue il contratto di eventi `atlas-events v2`
+(Recordare `docs/ATLAS_EVENTS.md`; Recordare 0.2.0 o successivo — la 0.1.0 parla la v1); i due repository evolvono separatamente.
 
 ## Avvio
 
@@ -46,7 +46,10 @@ invocati, le sue chiamate LLM, i suoi tool — accanto a quello di Recordare. L'
 /v1/traces`** (OTLP/HTTP, protobuf o JSON, gzip ammesso — vanno bene i default degli SDK; gRPC non è servito) con le
 convenzioni semantiche GenAI (`gen_ai.*`, stato "Development": `invoke_agent` / `plan` → corteccia prefrontale, `chat` →
 **area di Broca**, `execute_tool` / `embeddings` / `retrieval` → **corteccia motoria**). La ricezione richiede
-`ATLAS_INGEST_TOKEN` (l'exporter invia `Authorization: Bearer <token>`); senza, il ricevitore è spento.
+`ATLAS_INGEST_TOKEN` (l'exporter invia `Authorization: Bearer <token>`); senza, il ricevitore è spento. Gli span vocali,
+che non hanno ancora una convenzione GenAI, usano `voice.operation`: `transcription` → **corteccia uditiva**, poi la
+comprensione; `speech` → area di Broca, poi la voce — se ne leggono solo il tipo, la durata dell'audio e il numero di
+caratteri, mai il testo.
 
 Gli agenti che girano in Docker sulla stessa macchina raggiungono il server di sviluppo come `host.docker.internal`:
 avvialo con `ATLAS_ALLOWED_HOSTS=host.docker.internal` (altrimenti Vite rifiuta i nomi host sconosciuti).

@@ -10,8 +10,8 @@ motion: when the service is quiet, so is the brain. Metadata only — no message
 atlas. Italian copy: [`README_it.md`](README_it.md).
 
 **Optional.** Recordare works the same without it (with no listener, its telemetry costs nothing). The atlas reads
-three read-only admin endpoints of Recordare and follows the event contract `atlas-events v1`
-(Recordare `docs/ATLAS_EVENTS.md`); the two repositories evolve separately.
+three read-only admin endpoints of Recordare and follows the event contract `atlas-events v2`
+(Recordare `docs/ATLAS_EVENTS.md`; Recordare 0.2.0 or later — 0.1.0 speaks v1); the two repositories evolve separately.
 
 ## Run
 
@@ -43,7 +43,9 @@ calls, its tools — next to Recordare's. The atlas receives traces at **`POST /
 JSON, gzip allowed — the SDK defaults work; gRPC is not served) with the GenAI semantic conventions (`gen_ai.*`, status
 "Development": `invoke_agent` / `plan` → prefrontal cortex, `chat` → **Broca's area**, `execute_tool` / `embeddings` /
 `retrieval` → **motor cortex**). Receiving needs `ATLAS_INGEST_TOKEN` (the exporter sends `Authorization: Bearer
-<token>`); without it the receiver is off.
+<token>`); without it the receiver is off. Voice spans, which have no GenAI convention yet, use `voice.operation`:
+`transcription` → **auditory cortex**, then understanding; `speech` → Broca's area, then the voice — only their kind,
+audio length and character count are read, never the text.
 
 Agents running in Docker on the same machine reach the dev server as `host.docker.internal`: start it with
 `ATLAS_ALLOWED_HOSTS=host.docker.internal` (Vite refuses unknown host names otherwise).

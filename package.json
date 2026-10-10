@@ -1,7 +1,7 @@
 {
   "name": "recordare-atlas",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "description": "Recordare Atlas: a live brain view of a Recordare installation's memory. Optional companion of Recordare; real events only.",
   "license": "AGPL-3.0-or-later",
