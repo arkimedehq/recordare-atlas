@@ -48,10 +48,10 @@ export async function http(method, path, { token, body, headers = {} } = {}) {
 export const admin = (method, path, body, headers) => http(method, `/api/v1/admin/${path}`, { token: cfg.adminKey, body, headers });
 
 /** The service's live telemetry for one person (admin SSE); calls onEvent for each event until stop(). */
-export function telemetry(ownerId, onEvent) {
+export function telemetry(memoryId, onEvent) {
   const ctrl = new AbortController();
   (async () => {
-    const res = await fetch(`${cfg.recordare}/api/v1/admin/telemetry/stream?owner=${ownerId}`, {
+    const res = await fetch(`${cfg.recordare}/api/v1/admin/telemetry/stream?memory=${memoryId}`, {
       headers: { authorization: `Bearer ${cfg.adminKey}`, accept: 'text/event-stream' }, signal: ctrl.signal,
     });
     const reader = res.body.getReader();

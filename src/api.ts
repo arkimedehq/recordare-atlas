@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright © 2026 Andrea Genovese
 
-/** Client of the service's admin endpoints: owners, the atlas snapshot and the live telemetry stream. */
+/** Client of the service's admin endpoints: memories, the atlas snapshot and the live telemetry stream. */
 
-export interface OwnerItem { id: string; name: string; episodes: number; lastActivity: string | null }
+export interface MemoryItem { id: string; name: string; episodes: number; lastActivity: string | null }
 export interface AtlasEpisode { id: string; kind: string; authorRole: string; importance: number; day: string | null; precision: string;
   planStatus: string | null; hidden: 'duplicate' | 'invalidated' | null; xyz: [number, number, number] }
 export interface AtlasEdge { a: string; b: string; kind: 'similar' | 'corrects' | 'duplicate' | 'outcome' | 'rescheduled' | 'people' }
 export interface Atlas {
-  owner: { id: string; name: string }; generatedAt: string; episodes: AtlasEpisode[]; edges: AtlasEdge[];
+  memory: { id: string; name: string }; generatedAt: string; episodes: AtlasEpisode[]; edges: AtlasEdge[];
   facts: Array<{ id: string; key: string; status: string }>; notes: Array<{ id: string; category: string; pending: boolean }>;
   digests: Array<{ id: string; level: string; period: string }>;
   totals?: { llmCalls: number; inputTokens: number; outputTokens: number; recalls: number };
 }
-export type TelemetryEvent = { type: string; at: string; ownerId?: string | null } & Record<string, unknown>;
+export type TelemetryEvent = { type: string; at: string; memoryId?: string | null } & Record<string, unknown>;
 
 /** With an empty key the request goes without credentials (the local dev proxy adds the admin key). */
 const auth = (key: string): Record<string, string> => (key ? { authorization: `Bearer ${key}` } : {});
@@ -24,21 +24,21 @@ async function get<T>(path: string, key: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-export const owners = (key: string) => get<OwnerItem[]>('/api/v1/admin/owners', key);
-export const atlas = (key: string, ownerId: string) => get<Atlas>(`/api/v1/admin/owners/${ownerId}/atlas`, key);
+export const memories = (key: string) => get<MemoryItem[]>('/api/v1/admin/memories', key);
+export const atlas = (key: string, memoryId: string) => get<Atlas>(`/api/v1/admin/memories/${memoryId}/atlas`, key);
 
 /**
  * Server-Sent Events over fetch (EventSource cannot send the admin key as a header). Reconnects with backoff;
  * returns a stop function.
  */
-export function stream(key: string, ownerId: string | null, onEvent: (e: TelemetryEvent) => void, onState: (s: 'on' | 'off' | 'err') => void): () => void {
+export function stream(key: string, memoryId: string | null, onEvent: (e: TelemetryEvent) => void, onState: (s: 'on' | 'off' | 'err') => void): () => void {
   let stopped = false;
   let ctrl: AbortController | null = null;
   const run = async (attempt: number): Promise<void> => {
     if (stopped) return;
     ctrl = new AbortController();
     try {
-      const res = await fetch(`/api/v1/admin/telemetry/stream${ownerId ? `?owner=${encodeURIComponent(ownerId)}` : ''}`, {
+      const res = await fetch(`/api/v1/admin/telemetry/stream${memoryId ? `?memory=${encodeURIComponent(memoryId)}` : ''}`, {
         headers: { ...auth(key), accept: 'text/event-stream' }, signal: ctrl.signal,
       });
       if (!res.ok || !res.body) throw new Error(String(res.status));

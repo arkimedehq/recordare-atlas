@@ -10,7 +10,7 @@ reale viene registrata, e l'unico montaggio è il taglio delle pause senza attiv
   un piccolo agente demo: ogni turno viene acquisito e se ne legge il contesto di memoria (`POST api/v1/context`);
   l'agente risponde con una propria chiamata LLM e una volta cerca i suoi episodi via MCP (`search_episodes`); il suo
   lavoro arriva all'atlante come span OpenTelemetry GenAI (`invoke_agent`, `chat`, `execute_tool`). L'ultima risposta
-  chiude la conversazione → estrazione reale. Poi la notte: `POST api/v1/admin/owners/:id/consolidate` con
+  chiude la conversazione → estrazione reale. Poi la notte: `POST api/v1/admin/memories/:id/consolidate` con
   `X-Recordare-Now` alle 03:30 della notte successiva (serve `ALLOW_CLOCK_OVERRIDE` sul servizio) → diari del giorno e
   del mese con la palette del sonno; nel frattempo la vista passa alla modalità solo cervello.
 - `scenario.mjs` — la storia (persona, conversazioni precedenti, turni dal vivo, nome e prompt dell'agente) in inglese

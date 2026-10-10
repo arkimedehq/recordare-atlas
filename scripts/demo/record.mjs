@@ -35,8 +35,8 @@ const browser = await chromium.launch({
 });
 const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: 1 });
 await page.goto(`${cfg.atlas}/?lang=${encodeURIComponent(lang)}`);
-await page.waitForFunction((id) => [...document.querySelectorAll('#owner option')].some((o) => o.value === id), state.ownerId, { timeout: 20_000 });
-await page.selectOption('#owner', state.ownerId); // show the demo person (not "follow", so no other activity takes the view)
+await page.waitForFunction((id) => [...document.querySelectorAll('#memory option')].some((o) => o.value === id), state.memoryId, { timeout: 20_000 });
+await page.selectOption('#memory', state.memoryId); // show the demo person (not "follow", so no other activity takes the view)
 await page.click('#go');
 // Listening to the chosen person (not following): read from the status's state, not its text, so any language works.
 await page.waitForFunction(() => document.querySelector('.status.on[data-follow="false"]'), null, { timeout: 20_000 });
@@ -55,7 +55,7 @@ await cdp.send('Page.startScreencast', { format: 'jpeg', quality: 92, everyNthFr
 
 // ---------- the service's events for this person (to cut idle gaps later, and to pace the script) ----------
 const waiters = [];
-const stopEvents = telemetry(state.ownerId, (e) => {
+const stopEvents = telemetry(state.memoryId, (e) => {
   timeline.events.push({ t: Date.now() - t0, ...e });
   for (const w of [...waiters]) if (w.match(e)) { waiters.splice(waiters.indexOf(w), 1); w.resolve(e); }
 });
@@ -67,7 +67,7 @@ const waitFor = (match, ms = 180_000) => new Promise((resolve, reject) => {
 // ---------- the scripted session ----------
 const conv = `demo-live-${Date.now()}`;
 const mcp = new Mcp(state.token, conv);
-const agentAttrs = { 'gen_ai.agent.name': story.agent, 'recordare.owner_id': state.ownerId };
+const agentAttrs = { 'gen_ai.agent.name': story.agent, 'recordare.memory_id': state.memoryId };
 const history = [{ role: 'system', content: story.system }];
 let msg = 0;
 const message = (role, content) => ({ externalId: `${conv}-${msg++}`, role, content, sentAt: new Date().toISOString() });
@@ -119,7 +119,7 @@ try {
   step('night');
   let digests = 0;
   const someDigests = waitFor((e) => e.type === 'digest.written' && ++digests === Number(process.env.DIGESTS_BEFORE_ONLY_BRAIN ?? 3));
-  const done = http('POST', `/api/v1/admin/owners/${state.ownerId}/consolidate`, { token: cfg.adminKey, headers: { 'x-recordare-now': night.toISOString() } });
+  const done = http('POST', `/api/v1/admin/memories/${state.memoryId}/consolidate`, { token: cfg.adminKey, headers: { 'x-recordare-now': night.toISOString() } });
   await Promise.race([someDigests, done]);
   step('only brain');
   await page.click('#only'); // the screensaver view: only the brain (a viewing mode; it adds nothing)

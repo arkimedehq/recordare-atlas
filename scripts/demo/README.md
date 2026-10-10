@@ -10,7 +10,7 @@ recorded, and the only edit is cutting idle gaps (with a short cross-fade).
   demo agent: each turn is ingested and its memory context read (`POST api/v1/context`); the agent answers with its own
   LLM call and once searches her episodes over MCP (`search_episodes`); its work reaches the atlas as OpenTelemetry
   GenAI spans (`invoke_agent`, `chat`, `execute_tool`). The last reply ends the conversation → real extraction. Then
-  the night: `POST api/v1/admin/owners/:id/consolidate` with `X-Recordare-Now` at 03:30 of the coming night (needs
+  the night: `POST api/v1/admin/memories/:id/consolidate` with `X-Recordare-Now` at 03:30 of the coming night (needs
   `ALLOW_CLOCK_OVERRIDE` on the service) → day and month digests in the sleep palette; the view switches to only-brain
   mode during it.
 - `scenario.mjs` — the story (person, earlier conversations, live turns, the agent's name and prompt) in English or

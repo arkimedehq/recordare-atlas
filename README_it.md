@@ -62,7 +62,7 @@ OTEL_EXPORTER_OTLP_TRACES_HEADERS="Authorization=Bearer <ATLAS_INGEST_TOKEN>"
 argomenti e risultati dei tool non vengono mai letti (`server/otlp.mjs`). Non si salva nulla. Gli span arrivano
 all'atlante quando finiscono (gli exporter li raggruppano), quindi ciascuno è mostrato una volta, all'arrivo, con la sua
 durata reale nel log — mai allungato in una finta attesa dal vivo. Uno span muove il cervello solo quando porta la
-persona Recordare sullo schermo (attributo `recordare.owner_id`); gli span di altre persone non sono mostrati, e quelli
+persona Recordare sullo schermo (attributo `recordare.memory_id`); gli span di altre persone non sono mostrati, e quelli
 senza persona (un utente della piattaforma senza memoria Recordare) compaiono solo nel log — mai disegnati sul cervello
 di qualcun altro.
 

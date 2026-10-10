@@ -6,8 +6,8 @@
  * gateway: read-only GETs of the people list, one person's snapshot and the telemetry stream.
  */
 const ALLOWED = [
-  /^\/api\/v1\/admin\/owners$/,
-  /^\/api\/v1\/admin\/owners\/[0-9a-f-]{36}\/atlas$/,
+  /^\/api\/v1\/admin\/memories$/,
+  /^\/api\/v1\/admin\/memories\/[0-9a-f-]{36}\/atlas$/,
   /^\/api\/v1\/admin\/telemetry\/stream$/,
 ];
 

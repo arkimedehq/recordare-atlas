@@ -19,7 +19,7 @@ const listeners = new Set();
 /** OTLP JSON attribute list → plain object, keeping only the allowed keys. */
 const KEEP = new Set(['gen_ai.operation.name', 'gen_ai.provider.name', 'gen_ai.request.model', 'gen_ai.response.model', 'gen_ai.agent.name',
   'gen_ai.agent.id', 'gen_ai.tool.name', 'gen_ai.tool.type', 'gen_ai.usage.input_tokens', 'gen_ai.usage.output_tokens',
-  'gen_ai.usage.cache_read.input_tokens', 'recordare.owner_id', 'user.id', 'enduser.id', 'service.name',
+  'gen_ai.usage.cache_read.input_tokens', 'recordare.memory_id', 'user.id', 'enduser.id', 'service.name',
   // Voice (no GenAI convention for speech yet): what kind, how long — never the transcript or the text spoken.
   'voice.operation', 'voice.audio_seconds', 'voice.characters']);
 function attrs(list) {
@@ -41,7 +41,7 @@ export function toEvent(span, resource) {
   const start = Number(BigInt(span.startTimeUnixNano ?? 0) / 1_000_000n), end = Number(BigInt(span.endTimeUnixNano ?? 0) / 1_000_000n);
   return {
     type: 'client.span', op, service: a['service.name'] ?? null,
-    owner: a['recordare.owner_id'] ?? null, user: a['user.id'] ?? a['enduser.id'] ?? null,
+    memory: a['recordare.memory_id'] ?? null, user: a['user.id'] ?? a['enduser.id'] ?? null,
     agent: a['gen_ai.agent.name'] ?? a['gen_ai.agent.id'] ?? null, model: a['gen_ai.response.model'] ?? a['gen_ai.request.model'] ?? null,
     provider: a['gen_ai.provider.name'] ?? null, tool: a['gen_ai.tool.name'] ?? null, toolType: a['gen_ai.tool.type'] ?? null,
     inputTokens: num(a['gen_ai.usage.input_tokens']), outputTokens: num(a['gen_ai.usage.output_tokens']),

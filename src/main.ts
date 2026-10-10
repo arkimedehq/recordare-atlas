@@ -2,12 +2,12 @@
 // Copyright © 2026 Andrea Genovese
 
 /**
- * Neural Atlas (M5b.3 / 5b.6). Connects with the admin key, loads one owner's memory as a network and turns each
+ * Neural Atlas (M5b.3 / 5b.6). Connects with the admin key, loads one memory as a network and turns each
  * real telemetry event into an impulse along the real path of that data. No simulated or decorative motion: when the
  * service is quiet, so is the brain.
  */
 import './style.css';
-import { atlas, owners, stream, type OwnerItem, type TelemetryEvent } from './api';
+import { atlas, memories, stream, type MemoryItem, type TelemetryEvent } from './api';
 import { Brain, COLORS, type Region } from './brain';
 import { LANGS, applyStatic, getLang, onLangChange, setLang, t, type Key, type Lang } from './i18n';
 
@@ -19,7 +19,7 @@ const light = params.get('mode') === 'light', bloom = params.get('bloom') !== 'o
 const brain = new Brain($('stage'), { light, bloom });
 const renderKey: Key = light ? (bloom ? 'render.light' : 'render.lightNoBloom') : 'render.noBloom';
 if (light || !bloom) { const badge = $('render'); badge.hidden = false; badge.textContent = t(renderKey); }
-const keyInput = $<HTMLInputElement>('key'), ownerSelect = $<HTMLSelectElement>('owner'), status = $('status');
+const keyInput = $<HTMLInputElement>('key'), memorySelect = $<HTMLSelectElement>('memory'), status = $('status');
 const counters = { ep: 0, fn: 0, llm: 0, tok: 0, rec: 0, cl: 0 };
 let stopStream: (() => void) | null = null;
 let refreshTimer: number | undefined;
@@ -55,31 +55,31 @@ function showStatus(): void {
 }
 
 try { keyInput.value = sessionStorage.getItem('atlas-key') ?? ''; } catch { /* storage unavailable */ }
-keyInput.addEventListener('change', () => void loadOwners());
-void loadOwners(); // with a local proxy holding the key, no key is needed here
+keyInput.addEventListener('change', () => void loadMemories());
+void loadMemories(); // with a local proxy holding the key, no key is needed here
 
-let ownerList: OwnerItem[] = [];
+let memoryList: MemoryItem[] = [];
 /** Option texts of the person menu in the current language (values never change). */
-function ownerOptions(): void {
-  for (const opt of ownerSelect.options) {
-    const o = ownerList.find((x) => x.id === opt.value);
+function memoryOptions(): void {
+  for (const opt of memorySelect.options) {
+    const o = memoryList.find((x) => x.id === opt.value);
     if (opt.value === FOLLOW) opt.textContent = t('ctl.follow');
-    else if (o) opt.textContent = t('ctl.ownerItem', { name: o.name, n: o.episodes });
+    else if (o) opt.textContent = t('ctl.memoryItem', { name: o.name, n: o.episodes });
   }
 }
 
-async function loadOwners(): Promise<void> {
+async function loadMemories(): Promise<void> {
   try {
-    const list = await owners(keyInput.value);
-    latestOwner = list[0]?.id ?? null; // the list is ordered by last activity
-    ownerList = list;
-    ownerSelect.replaceChildren(Object.assign(document.createElement('option'), { value: FOLLOW }), ...list.map((o) => Object.assign(document.createElement('option'), { value: o.id })));
-    ownerOptions();
-    ownerSelect.disabled = false;
+    const list = await memories(keyInput.value);
+    latestMemory = list[0]?.id ?? null; // the list is ordered by last activity
+    memoryList = list;
+    memorySelect.replaceChildren(Object.assign(document.createElement('option'), { value: FOLLOW }), ...list.map((o) => Object.assign(document.createElement('option'), { value: o.id })));
+    memoryOptions();
+    memorySelect.disabled = false;
     try { if (keyInput.value) sessionStorage.setItem('atlas-key', keyInput.value); } catch { /* storage unavailable */ }
     setStatus('off', () => t('status.people', { n: list.length }));
     // Opened without a running stream: follow the service at once (a reload never leaves the brain disconnected).
-    if (!stopStream) { ownerSelect.value = FOLLOW; void connect(FOLLOW); }
+    if (!stopStream) { memorySelect.value = FOLLOW; void connect(FOLLOW); }
   } catch (err) {
     setStatus('err', () => t('status.badKey', { error: (err as Error).message }));
   }
@@ -87,13 +87,13 @@ async function loadOwners(): Promise<void> {
 
 $<HTMLFormElement>('connect').addEventListener('submit', (ev) => {
   ev.preventDefault();
-  void connect(ownerSelect.value);
+  void connect(memorySelect.value);
 });
 
 /**
- * "Follow": listen to the whole service and show whichever owner is active (evaluation runs create new ones). One
- * owner at a time, each on screen at least STAY_MS: after that, activity of another owner takes the view even if the
- * shown one is still busy — two owners at work alternate instead of one hiding the other (a long evaluation run must
+ * "Follow": listen to the whole service and show whichever memory is active (evaluation runs create new ones). One
+ * memory at a time, each on screen at least STAY_MS: after that, activity of another memory takes the view even if the
+ * shown one is still busy — two memories at work alternate instead of one hiding the other (a long evaluation run must
  * not hide a person chatting).
  */
 const FOLLOW = '__follow__';
@@ -101,16 +101,16 @@ const STAY_MS = 20_000;
 let current: string | null = null;
 let shownSince = 0;
 let following = false;
-let latestOwner: string | null = null;
+let latestMemory: string | null = null;
 let shownName = '';
 
 async function connect(choice: string): Promise<void> {
-  if (!choice) { await loadOwners(); return; }
+  if (!choice) { await loadMemories(); return; }
   stopStream?.();
   working.clear(); brain.idle();
   const follow = choice === FOLLOW;
   following = follow;
-  current = follow ? latestOwner : choice; // follow starts from the person active most recently
+  current = follow ? latestMemory : choice; // follow starts from the person active most recently
   shownSince = Date.now();
   if (current) await refresh(current).catch(() => undefined);
   stopStream = stream(keyInput.value, follow ? null : choice, (e) => void route(e, follow), (s) => {
@@ -120,24 +120,24 @@ async function connect(choice: string): Promise<void> {
   log('idle', () => t(follow ? 'log.followAll' : 'log.connected'));
 }
 
-/** Events of the shown owner animate the brain; in follow mode, activity of another owner switches the view to them. */
+/** Events of the shown memory animate the brain; in follow mode, activity of another memory switches the view to them. */
 async function route(e: TelemetryEvent, follow: boolean): Promise<void> {
-  const owner = typeof e.ownerId === 'string' ? e.ownerId : null;
-  if (follow && owner && owner !== current && Date.now() - shownSince > STAY_MS) {
-    current = owner;
+  const memory = typeof e.memoryId === 'string' ? e.memoryId : null;
+  if (follow && memory && memory !== current && Date.now() - shownSince > STAY_MS) {
+    current = memory;
     shownSince = Date.now();
     working.clear(); brain.idle(); // the previous person's jobs end out of sight
     log('idle', () => t('log.switch'));
-    await refresh(owner).catch(() => undefined);
+    await refresh(memory).catch(() => undefined);
   }
-  if (current && owner && owner !== current) return;
-  await onEvent(e, current ?? owner ?? '');
+  if (current && memory && memory !== current) return;
+  await onEvent(e, current ?? memory ?? '');
 }
 
-async function refresh(ownerId: string): Promise<void> {
-  const a = await atlas(keyInput.value, ownerId);
+async function refresh(memoryId: string): Promise<void> {
+  const a = await atlas(keyInput.value, memoryId);
   brain.load(a);
-  shownName = a.owner.name;
+  shownName = a.memory.name;
   showStatus();
   counters.ep = a.episodes.filter((e) => !e.hidden && e.authorRole !== 'other' && e.authorRole !== 'tool').length;
   counters.cl = a.episodes.filter((e) => e.authorRole === 'other' || e.authorRole === 'tool').length;
@@ -148,9 +148,9 @@ async function refresh(ownerId: string): Promise<void> {
   show();
 }
 /** New memories get their real place by meaning at the next snapshot (a few seconds after the writes stop). */
-function scheduleRefresh(ownerId: string): void {
+function scheduleRefresh(memoryId: string): void {
   window.clearTimeout(refreshTimer);
-  refreshTimer = window.setTimeout(() => void refresh(ownerId), 15_000);
+  refreshTimer = window.setTimeout(() => void refresh(memoryId), 15_000);
 }
 
 const taskOf = (promptId: string) => promptId.split('.')[0] ?? promptId;
@@ -172,7 +172,7 @@ function endWork(id: number): void {
 // ---------- client agents (OpenTelemetry GenAI spans relayed by the atlas server, WORK_PLAN 5b.8) ----------
 /** Spans reach the atlas when they end (the client's exporter batches them): each is shown once, on arrival, as what
  * it was — never stretched into a fake live wait. */
-interface ClientSpan { op: string; owner: string | null; user: string | null; agent: string | null; model: string | null; tool: string | null; service: string | null;
+interface ClientSpan { op: string; memory: string | null; user: string | null; agent: string | null; model: string | null; tool: string | null; service: string | null;
   inputTokens?: number; outputTokens?: number; audioSeconds?: number; characters?: number; ms: number; status: string }
 function onClientSpan(s: ClientSpan): void {
   const who = (): string => s.agent ?? s.service ?? t('log.agent');
@@ -180,12 +180,12 @@ function onClientSpan(s: ClientSpan): void {
   const err = (): string => (s.status === 'error' ? t('log.error') : '');
   // Only a span tied to the person on screen moves their brain. A span with no person (a user without Recordare
   // memory) is logged, never drawn on someone else's brain; another person's span is not shown at all.
-  if (!s.owner) {
+  if (!s.memory) {
     // With a user but no person: the platform did not (yet) know the user's Recordare person when the span started.
     log('idle', () => `client · ${t(s.user ? 'log.userNoPerson' : 'log.noUser')} · ${who()} · ${s.op} · ${took}${err()}`);
     return;
   }
-  if (s.owner !== current) return;
+  if (s.memory !== current) return;
   if (s.op === 'transcription') {
     log('in', () => `client · ${t('log.hearing')} · ${s.model ?? ''}${s.audioSeconds ? t('log.audio', { s: s.audioSeconds.toFixed(1) }) : ''} · ${took}${err()}`);
     void brain.fire('auditory', 'llm', COLORS.cyan, { size: 0.22 });
@@ -222,7 +222,7 @@ function asleep(on: boolean): void {
 }
 const hippo = (id: string): Region => brain.regionOf(id) ?? 'hippoR';
 
-async function onEvent(e: TelemetryEvent, ownerId: string): Promise<void> {
+async function onEvent(e: TelemetryEvent, memoryId: string): Promise<void> {
   switch (e.type) {
     case 'message.ingested': {
       const n = Math.min(Number(e['messages']) || 1, 6);
@@ -280,13 +280,13 @@ async function onEvent(e: TelemetryEvent, ownerId: string): Promise<void> {
         counters.fn++; log('sleep', () => t(table === 'facts' ? 'log.fact' : 'log.note'), e.at);
         void brain.fire('llm', 'cortex', COLORS.violet, { to: id });
       }
-      show(); scheduleRefresh(ownerId);
+      show(); scheduleRefresh(memoryId);
       break;
     }
     case 'episode.linked':
       log('warn', () => t(e['relation'] === 'corrects' ? 'log.correction' : 'log.duplicate'), e.at);
       brain.link(String(e['from']), String(e['to']), e['relation'] === 'corrects' ? COLORS.red : 0x8899aa);
-      scheduleRefresh(ownerId);
+      scheduleRefresh(memoryId);
       break;
     case 'recall.served': {
       counters.rec++; show();
@@ -305,7 +305,7 @@ async function onEvent(e: TelemetryEvent, ownerId: string): Promise<void> {
       asleep(true);
       log('sleep', () => t(e['level'] === 'month' ? 'log.digestMonth' : 'log.digestDay', { period: String(e['period']) }), e.at);
       void brain.fire('hippoR', 'cortex', COLORS.violet);
-      scheduleRefresh(ownerId);
+      scheduleRefresh(memoryId);
       break;
     case 'consolidation.finished':
       asleep(false);
@@ -373,7 +373,7 @@ onLangChange(() => {
   brain.relabel();
   status.textContent = statusText();
   showPhase();
-  ownerOptions();
+  memoryOptions();
   if (light || !bloom) $('render').textContent = t(renderKey);
   $('events').querySelectorAll<HTMLElement>('li > span').forEach((span) => { const f = logText.get(span); if (f) span.textContent = f(); });
 });

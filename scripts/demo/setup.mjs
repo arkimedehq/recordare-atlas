@@ -15,19 +15,19 @@ need('adminKey');
 const name = process.env.DEMO_PERSON ?? story.person;
 
 const client = await admin('POST', 'clients', { name: 'Atlas demo client', kind: 'mcp_client' });
-const owner = await admin('POST', 'owners', { displayName: name, locale: story.locale, timezone: story.timezone, episodicEnabled: true });
-const ownerId = owner.personId ?? owner.id;
-const token = await admin('POST', `owners/${ownerId}/tokens`, { clientId: client.id, scopes: ['ingest', 'mcp', 'read'] });
-const state = { ownerId, clientId: client.id, tokenId: token.id, token: token.token };
+const memory = await admin('POST', 'memories', { displayName: name, locale: story.locale, timezone: story.timezone, episodicEnabled: true });
+const memoryId = memory.personId ?? memory.id;
+const token = await admin('POST', `memories/${memoryId}/tokens`, { clientId: client.id, scopes: ['ingest', 'mcp', 'read'] });
+const state = { memoryId, clientId: client.id, tokenId: token.id, token: token.token };
 if (!state.token) throw new Error('no token in the response');
 writeFileSync(cfg.state, JSON.stringify(state), { mode: 0o600 });
-console.log(`person ${name} ${ownerId} · client ${client.id} · state in ${cfg.state}`);
+console.log(`person ${name} ${memoryId} · client ${client.id} · state in ${cfg.state}`);
 
 // Earlier conversations (scenario.mjs): the assistant's replies are scripted (no LLM spent on them).
 const seeds = story.seeds;
 
 let finished = 0;
-const stop = telemetry(ownerId, (e) => { if (e.type === 'extraction.finished') { finished++; console.log(`extraction ${e.status}`); } });
+const stop = telemetry(memoryId, (e) => { if (e.type === 'extraction.finished') { finished++; console.log(`extraction ${e.status}`); } });
 await sleep(500);
 for (const s of seeds) {
   const start = at(s.day, 20, 15);
@@ -40,5 +40,5 @@ for (const s of seeds) {
 for (let i = 0; i < 240 && finished < seeds.length; i++) await sleep(1000);
 await sleep(5000); // embeddings of the new memories
 stop();
-const snap = await admin('GET', `owners/${ownerId}/atlas`);
+const snap = await admin('GET', `memories/${memoryId}/atlas`);
 console.log(`seeded: ${snap.episodes.length} episodes, ${snap.facts.length} facts, ${snap.notes.length} notes`);

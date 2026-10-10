@@ -3,7 +3,7 @@
 
 /**
  * The brain scene: a static cortex shell, region hubs joined by polysynaptic fibre tracts (chains of relay neurons and axons), and the
- * owner's memories as a network — episodes as neurons placed by meaning, real relations as synapses. Nothing moves
+ * memory as a network — episodes as neurons placed by meaning, real relations as synapses. Nothing moves
  * by itself: the only motion is an impulse travelling a real path when the service reports a real event (WORK_PLAN
  * 5b.6), and the short glow it leaves behind.
  */
@@ -309,7 +309,7 @@ export class Brain {
     return new THREE.Points(g, glowMaterial(this.renderer.getPixelRatio() * scale));
   }
 
-  // ---------- the owner's memory as a network ----------
+  // ---------- the memory as a network ----------
   load(atlas: Atlas): void {
     const kindColor = (k: string) => new THREE.Color(k === 'plan' ? COLORS.amber : k === 'state_change' ? COLORS.magenta : COLORS.cyan);
     const neurons = new Map<string, Neuron>();
