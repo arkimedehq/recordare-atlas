@@ -55,8 +55,10 @@ aside.legend { left: 16px; top: 108px; width: 230px; padding: 12px; display: gri
 
 aside.log { right: 16px; top: 108px; width: 360px; max-height: calc(100% - 200px); padding: 12px; display: grid; grid-template-rows: auto 1fr; }
 #events { list-style: none; margin: 0; padding: 0; overflow: hidden; display: grid; gap: 3px; align-content: start; }
-#events li { display: grid; grid-template-columns: 58px minmax(0, 9ch) minmax(0, 1fr); gap: 6px; line-height: 1.35; }
-#events .who { color: var(--muted); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#events li { display: grid; grid-template-columns: 58px minmax(0, 1fr); gap: 6px; line-height: 1.35; }
+#events p { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+#events .who { color: var(--ink); font-weight: 700; margin-right: 6px; }
+#events .who::after { content: ' ·'; color: var(--muted); font-weight: 400; }
 #events time { color: var(--muted); font-variant-numeric: tabular-nums; }
 #events .llm { color: var(--amber); } #events .ep { color: var(--cyan); } #events .rec { color: var(--lime); }
 #events .warn { color: var(--red); } #events .sleep { color: var(--violet); } #events .in { color: var(--ink); }

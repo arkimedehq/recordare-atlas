@@ -35,10 +35,12 @@ const logText = new WeakMap<HTMLElement, () => string>();
 function log(cls: string, text: () => string, at?: string, who = ''): void {
   const li = document.createElement('li');
   const time = document.createElement('time'); time.textContent = (at ? new Date(at) : new Date()).toTimeString().slice(0, 8);
-  const name = document.createElement('b'); name.className = 'who'; name.textContent = who; name.title = who;
+  const body = document.createElement('p');
+  if (who) { const name = document.createElement('b'); name.className = 'who'; name.textContent = who; body.append(name); }
   const span = document.createElement('span'); span.className = cls; span.textContent = text();
   logText.set(span, text);
-  li.append(time, name, span); $('events').prepend(li);
+  body.append(span);
+  li.append(time, body); $('events').prepend(li);
   while ($('events').children.length > 40) $('events').lastChild?.remove();
 }
 let statusText = (): string => t('status.notConnected');
