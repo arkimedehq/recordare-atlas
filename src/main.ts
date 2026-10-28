@@ -36,7 +36,7 @@ function log(cls: string, text: () => string, at?: string, who = ''): void {
   const li = document.createElement('li');
   const time = document.createElement('time'); time.textContent = (at ? new Date(at) : new Date()).toTimeString().slice(0, 8);
   const body = document.createElement('p');
-  if (who) { const name = document.createElement('b'); name.className = 'who'; name.textContent = who; body.append(name); }
+  if (who) { const name = document.createElement('b'); name.className = 'owner'; name.textContent = who; body.append(name); }
   const span = document.createElement('span'); span.className = cls; span.textContent = text();
   logText.set(span, text);
   body.append(span);
@@ -386,6 +386,6 @@ onLangChange(() => {
   showPhase();
   memoryOptions();
   if (light || !bloom) $('render').textContent = t(renderKey);
-  $('events').querySelectorAll<HTMLElement>('li > span').forEach((span) => { const f = logText.get(span); if (f) span.textContent = f(); });
+  $('events').querySelectorAll<HTMLElement>('li span').forEach((span) => { const f = logText.get(span); if (f) span.textContent = f(); });
 });
 showLang(); showPhase(); status.textContent = statusText(); // the HTML holds the English defaults
