@@ -188,8 +188,13 @@ export class Brain {
       p.addScaledVector(p.clone().normalize(), g);
       pos.push(p.x, p.y + 0.4, p.z); c.setHSL(0.55, 0.7, 0.1 + r() * 0.12); col.push(c.r, c.g, c.b); size.push(0.03 + r() * 0.04);
     }
-    for (let i = 0; i < 1800; i++) {
-      const v = sphere(); pos.push(v.x * 1.5, v.y * 0.6 - 1.25, v.z * 0.95 - 2.35); c.setHSL(0.57, 0.6, 0.08 + r() * 0.1); col.push(c.r, c.g, c.b); size.push(0.03 + r() * 0.03);
+    // The cerebellum: two lobes joined at the midline, tucked under the back of the hemispheres (its flat top against
+    // them, as under the tentorium), wider than tall, with fine transverse folia.
+    for (const side of [1, -1]) for (let i = 0; i < 1500; i++) {
+      const v = sphere(); const p = new THREE.Vector3(v.x * 0.95, v.y * (v.y > 0 ? 0.32 : 0.55), v.z * 0.85);
+      const folia = 0.025 * Math.sin(Math.atan2(p.y, p.z) * 16 + p.x * 1.5);
+      p.addScaledVector(p.clone().normalize(), folia);
+      pos.push(side * 0.72 + p.x, p.y - 0.74, p.z - 2.15); c.setHSL(0.57, 0.6, 0.09 + r() * 0.11); col.push(c.r, c.g, c.b); size.push(0.03 + r() * 0.03);
     }
     for (let i = 0; i < pos.length; i += 3) {
       const y = pos[i + 1]!;
