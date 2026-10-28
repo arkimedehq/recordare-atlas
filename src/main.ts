@@ -31,12 +31,14 @@ function show(): void {
 }
 /** Each log line keeps how to write itself, so a change of language rewrites the lines already shown. */
 const logText = new WeakMap<HTMLElement, () => string>();
-function log(cls: string, text: () => string, at?: string): void {
+/** Each line names whose memory the event is (empty for the atlas' own lines). */
+function log(cls: string, text: () => string, at?: string, who = ''): void {
   const li = document.createElement('li');
   const time = document.createElement('time'); time.textContent = (at ? new Date(at) : new Date()).toTimeString().slice(0, 8);
+  const name = document.createElement('b'); name.className = 'who'; name.textContent = who; name.title = who;
   const span = document.createElement('span'); span.className = cls; span.textContent = text();
   logText.set(span, text);
-  li.append(time, span); $('events').prepend(li);
+  li.append(time, name, span); $('events').prepend(li);
   while ($('events').children.length > 40) $('events').lastChild?.remove();
 }
 let statusText = (): string => t('status.notConnected');
@@ -59,6 +61,9 @@ keyInput.addEventListener('change', () => void loadMemories());
 void loadMemories(); // with a local proxy holding the key, no key is needed here
 
 let memoryList: MemoryItem[] = [];
+/** Memory names by id: from the person menu and from every snapshot (a memory created after the menu loaded). */
+const names = new Map<string, string>();
+const nameOf = (memoryId: string | null | undefined): string => (memoryId ? names.get(memoryId) ?? '' : '');
 /** Option texts of the person menu in the current language (values never change). */
 function memoryOptions(): void {
   for (const opt of memorySelect.options) {
@@ -73,6 +78,7 @@ async function loadMemories(): Promise<void> {
     const list = await memories(keyInput.value);
     latestMemory = list[0]?.id ?? null; // the list is ordered by last activity
     memoryList = list;
+    list.forEach((o) => names.set(o.id, o.name));
     memorySelect.replaceChildren(Object.assign(document.createElement('option'), { value: FOLLOW }), ...list.map((o) => Object.assign(document.createElement('option'), { value: o.id })));
     memoryOptions();
     memorySelect.disabled = false;
@@ -138,6 +144,7 @@ async function refresh(memoryId: string): Promise<void> {
   const a = await atlas(keyInput.value, memoryId);
   brain.load(a);
   shownName = a.memory.name;
+  names.set(a.memory.id, a.memory.name);
   showStatus();
   counters.ep = a.episodes.filter((e) => !e.hidden && e.authorRole !== 'other' && e.authorRole !== 'tool').length;
   counters.cl = a.episodes.filter((e) => e.authorRole === 'other' || e.authorRole === 'tool').length;
@@ -178,30 +185,31 @@ function onClientSpan(s: ClientSpan): void {
   const who = (): string => s.agent ?? s.service ?? t('log.agent');
   const took = s.ms >= 1000 ? `${(s.ms / 1000).toFixed(1)} s` : `${s.ms} ms`;
   const err = (): string => (s.status === 'error' ? t('log.error') : '');
+  const whose = s.memory ? nameOf(s.memory) : s.user ?? ''; // without a memory, the platform's own user id
   // Only a span tied to the person on screen moves their brain. A span with no person (a user without Recordare
   // memory) is logged, never drawn on someone else's brain; another person's span is not shown at all.
   if (!s.memory) {
     // With a user but no person: the platform did not (yet) know the user's Recordare person when the span started.
-    log('idle', () => `client · ${t(s.user ? 'log.userNoPerson' : 'log.noUser')} · ${who()} · ${s.op} · ${took}${err()}`);
+    log('idle', () => `client · ${t(s.user ? 'log.userNoPerson' : 'log.noUser')} · ${who()} · ${s.op} · ${took}${err()}`, undefined, whose);
     return;
   }
   if (s.memory !== current) return;
   if (s.op === 'transcription') {
-    log('in', () => `client · ${t('log.hearing')} · ${s.model ?? ''}${s.audioSeconds ? t('log.audio', { s: s.audioSeconds.toFixed(1) }) : ''} · ${took}${err()}`);
+    log('in', () => `client · ${t('log.hearing')} · ${s.model ?? ''}${s.audioSeconds ? t('log.audio', { s: s.audioSeconds.toFixed(1) }) : ''} · ${took}${err()}`, undefined, whose);
     void brain.fire('auditory', 'llm', COLORS.cyan, { size: 0.22 });
   } else if (s.op === 'speech') {
-    log('in', () => `client · ${t('log.voice')} · ${s.model ?? ''}${s.characters ? t('log.chars', { n: s.characters }) : ''} · ${took}${err()}`);
+    log('in', () => `client · ${t('log.voice')} · ${s.model ?? ''}${s.characters ? t('log.chars', { n: s.characters }) : ''} · ${took}${err()}`, undefined, whose);
     void brain.fire('broca', 'motor', COLORS.orange, { size: 0.22 });
   } else if (['invoke_agent', 'plan', 'invoke_workflow', 'create_agent'].includes(s.op)) {
-    log('rec', () => `client · ${who()} · ${s.op} · ${took}${err()}`);
+    log('rec', () => `client · ${who()} · ${s.op} · ${took}${err()}`, undefined, whose);
     void brain.fire('agent', 'prefrontal', COLORS.lime, { size: 0.22 });
   } else if (['chat', 'text_completion', 'generate_content'].includes(s.op)) {
-    log('llm', () => `client · ${who()} · LLM ${s.model ?? ''} · ${s.inputTokens ?? '?'}→${s.outputTokens ?? '?'} tok · ${took}${err()}`);
+    log('llm', () => `client · ${who()} · LLM ${s.model ?? ''} · ${s.inputTokens ?? '?'}→${s.outputTokens ?? '?'} tok · ${took}${err()}`, undefined, whose);
     void brain.fire('prefrontal', 'broca', COLORS.orange, { size: 0.24 });
   } else if (['execute_tool', 'embeddings', 'retrieval'].includes(s.op)) {
-    log('in', () => `client · ${who()} · ${s.op === 'execute_tool' ? `tool ${s.tool ?? ''}` : s.op} · ${took}${err()}`);
+    log('in', () => `client · ${who()} · ${s.op === 'execute_tool' ? `tool ${s.tool ?? ''}` : s.op} · ${took}${err()}`, undefined, whose);
     void brain.fire('prefrontal', 'motor', COLORS.gold, { size: 0.2 });
-  } else log('idle', () => `client · ${who()} · ${s.op} · ${took}${err()}`); // memory operations: Recordare shows its own side
+  } else log('idle', () => `client · ${who()} · ${s.op} · ${took}${err()}`, undefined, whose); // memory operations: Recordare shows its own side
 }
 function clientEvents(): void {
   const es = new EventSource('/atlas/client-stream');
@@ -223,10 +231,11 @@ function asleep(on: boolean): void {
 const hippo = (id: string): Region => brain.regionOf(id) ?? 'hippoR';
 
 async function onEvent(e: TelemetryEvent, memoryId: string): Promise<void> {
+  const who = nameOf(memoryId);
   switch (e.type) {
     case 'message.ingested': {
       const n = Math.min(Number(e['messages']) || 1, 6);
-      log('in', () => t('log.messages', { n: String(e['messages']) }), e.at);
+      log('in', () => t('log.messages', { n: String(e['messages']) }), e.at, who);
       for (let i = 0; i < n; i++) window.setTimeout(() => void brain.fire('entry', 'thalamus', COLORS.white, { size: 0.2 }), i * 120);
       break;
     }
@@ -245,7 +254,7 @@ async function onEvent(e: TelemetryEvent, memoryId: string): Promise<void> {
       break;
     }
     case 'extraction.started':
-      log('in', () => t('log.extraction', { n: String(e['messages']) }), e.at);
+      log('in', () => t('log.extraction', { n: String(e['messages']) }), e.at, who);
       break;
     case 'llm.started': {
       // The request leaves now; the LLM region stays lit until the answer comes back (llm.call).
@@ -254,14 +263,14 @@ async function onEvent(e: TelemetryEvent, memoryId: string): Promise<void> {
       if (task === 'resolve') void brain.fire('hippoR', 'llm', COLORS.red, { size: 0.2 });
       else if (task === 'digest') { asleep(true); void brain.fire('hippoL', 'llm', COLORS.violet, { size: 0.2 }); }
       else void brain.fire('thalamus', 'llm', COLORS.amber, { size: 0.24 });
-      log('llm', () => t('log.llmRunning', { prompt: String(e['promptId']) }), e.at);
+      log('llm', () => t('log.llmRunning', { prompt: String(e['promptId']) }), e.at, who);
       break;
     }
     case 'llm.call': {
       const task = taskOf(String(e['promptId']));
       brain.wait('llm', -1);
       counters.llm++; counters.tok += (Number(e['inputTokens']) || 0) + (Number(e['outputTokens']) || 0); show();
-      log('llm', () => `LLM ${String(e['promptId'])} · ${String(e['model'])} · ${String(e['inputTokens'])}→${String(e['outputTokens'])} tok · ${String(e['latencyMs'])} ms${e['status'] === 'ok' ? '' : ` · ${String(e['status'])}`}`, e.at);
+      log('llm', () => `LLM ${String(e['promptId'])} · ${String(e['model'])} · ${String(e['inputTokens'])}→${String(e['outputTokens'])} tok · ${String(e['latencyMs'])} ms${e['status'] === 'ok' ? '' : ` · ${String(e['status'])}`}`, e.at, who);
       // The answer leaves the LLM: verdicts to the conflict region, diaries to the cortex; extraction answers become
       // memory.written impulses (llm → the exact neuron).
       if (task === 'resolve') void brain.fire('llm', 'acc', COLORS.red);
@@ -273,25 +282,25 @@ async function onEvent(e: TelemetryEvent, memoryId: string): Promise<void> {
       const claim = e['authorRole'] === 'other' || e['authorRole'] === 'tool';
       brain.addNeuron(id, e['kind'] as string | undefined, e['authorRole'] as string | undefined, table);
       if (table === 'episodes') {
-        if (claim) { counters.cl++; log('warn', () => t('log.claim', { kind: String(e['kind']) }), e.at); }
-        else { counters.ep++; log('ep', () => t('log.episode', { kind: String(e['kind']), n: String(e['importance']) }), e.at); }
+        if (claim) { counters.cl++; log('warn', () => t('log.claim', { kind: String(e['kind']) }), e.at, who); }
+        else { counters.ep++; log('ep', () => t('log.episode', { kind: String(e['kind']), n: String(e['importance']) }), e.at, who); }
         void brain.fire('llm', claim ? 'acc' : hippo(id), claim ? COLORS.red : COLORS.cyan, { to: id });
       } else {
-        counters.fn++; log('sleep', () => t(table === 'facts' ? 'log.fact' : 'log.note'), e.at);
+        counters.fn++; log('sleep', () => t(table === 'facts' ? 'log.fact' : 'log.note'), e.at, who);
         void brain.fire('llm', 'cortex', COLORS.violet, { to: id });
       }
       show(); scheduleRefresh(memoryId);
       break;
     }
     case 'episode.linked':
-      log('warn', () => t(e['relation'] === 'corrects' ? 'log.correction' : 'log.duplicate'), e.at);
+      log('warn', () => t(e['relation'] === 'corrects' ? 'log.correction' : 'log.duplicate'), e.at, who);
       brain.link(String(e['from']), String(e['to']), e['relation'] === 'corrects' ? COLORS.red : 0x8899aa);
       scheduleRefresh(memoryId);
       break;
     case 'recall.served': {
       counters.rec++; show();
       const ids = (e['episodeIds'] as string[] | undefined) ?? [], claims = (e['claimIds'] as string[] | undefined) ?? [];
-      log('rec', () => `${String(e['tool'])}${e['mode'] ? ` (${String(e['mode'])})` : ''}${t('log.recallEpisodes', { n: ids.length })}${claims.length ? t('log.recallClaims', { n: claims.length }) : ''}${Number(e['digests']) ? t('log.recallDigests', { n: String(e['digests']) }) : ''}${Number(e['facts']) ? t('log.recallFacts', { n: String(e['facts']) }) : ''}`, e.at);
+      log('rec', () => `${String(e['tool'])}${e['mode'] ? ` (${String(e['mode'])})` : ''}${t('log.recallEpisodes', { n: ids.length })}${claims.length ? t('log.recallClaims', { n: claims.length }) : ''}${Number(e['digests']) ? t('log.recallDigests', { n: String(e['digests']) }) : ''}${Number(e['facts']) ? t('log.recallFacts', { n: String(e['facts']) }) : ''}`, e.at, who);
       await brain.fire('agent', 'prefrontal', COLORS.lime);
       const reach: Array<Promise<void>> = [];
       ids.slice(0, 20).forEach((id) => reach.push(brain.fire('prefrontal', hippo(id), COLORS.lime, { to: id, size: 0.18 })));
@@ -303,20 +312,20 @@ async function onEvent(e: TelemetryEvent, memoryId: string): Promise<void> {
     }
     case 'digest.written':
       asleep(true);
-      log('sleep', () => t(e['level'] === 'month' ? 'log.digestMonth' : 'log.digestDay', { period: String(e['period']) }), e.at);
+      log('sleep', () => t(e['level'] === 'month' ? 'log.digestMonth' : 'log.digestDay', { period: String(e['period']) }), e.at, who);
       void brain.fire('hippoR', 'cortex', COLORS.violet);
       scheduleRefresh(memoryId);
       break;
     case 'consolidation.finished':
       asleep(false);
-      log('sleep', () => t('log.consolidation', { days: String(e['days']), months: String(e['months']), calls: String(e['llmCalls']) }), e.at);
+      log('sleep', () => t('log.consolidation', { days: String(e['days']), months: String(e['months']), calls: String(e['llmCalls']) }), e.at, who);
       break;
     case 'episode.forgotten':
       brain.forget((e['ids'] as string[] | undefined) ?? []);
-      log('warn', () => t('log.forgotten', { n: ((e['ids'] as string[] | undefined) ?? []).length }), e.at);
+      log('warn', () => t('log.forgotten', { n: ((e['ids'] as string[] | undefined) ?? []).length }), e.at, who);
       break;
     case 'extraction.finished':
-      if (e['status'] !== 'done') log('warn', () => t('log.extractionStatus', { status: String(e['status']) }), e.at);
+      if (e['status'] !== 'done') log('warn', () => t('log.extractionStatus', { status: String(e['status']) }), e.at, who);
       break;
   }
 }
